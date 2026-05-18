@@ -79,6 +79,7 @@ type ExchangeStatus = 'idle' | 'loading' | 'done' | 'skipped';
 type PublishStatus = 'idle' | 'loading' | 'done';
 type StatusRefreshState = 'idle' | 'loading' | 'done';
 type SheetSyncStatus = 'idle' | 'loading' | 'saved' | 'failed';
+type PrivacyLevel = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
 
 function buildAuthUrl(clientKey: string, redirectUri: string): string {
   const state = crypto.randomUUID();
@@ -132,6 +133,10 @@ function App() {
   const [statusRefreshResult, setStatusRefreshResult] = useState<StatusRefreshResult | null>(null);
   const [statusRefreshSheetSync, setStatusRefreshSheetSync] = useState<SheetSyncStatus>('idle');
   const [demoState, setDemoState] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>('PUBLIC_TO_EVERYONE');
+  const [disclosureEnabled, setDisclosureEnabled] = useState(false);
+  const [brandOrganic, setBrandOrganic] = useState(false);
+  const [brandContent, setBrandContent] = useState(false);
 
   useEffect(() => {
     if (path.includes('/terms')) {
@@ -225,18 +230,23 @@ function App() {
     setSheetSyncStatus('idle');
     let result: PublishResult;
     try {
+      const publishBody: Record<string, unknown> = {
+        open_id: tokenResult?.openId ?? undefined,
+        upload_mode: 'FILE_UPLOAD',
+        upload_binary: true,
+        check_status: true,
+        video_url: TEST_VIDEO_URL,
+        title,
+        privacy_level: privacyLevel,
+      };
+      if (disclosureEnabled) {
+        publishBody.brand_organic_toggle = brandOrganic;
+        publishBody.brand_content_toggle = brandContent;
+      }
       const res = await fetch(PUBLISH_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          open_id: tokenResult?.openId ?? undefined,
-          upload_mode: 'FILE_UPLOAD',
-          upload_binary: true,
-          check_status: true,
-          video_url: TEST_VIDEO_URL,
-          title,
-          privacy_level: 'SELF_ONLY',
-        }),
+        body: JSON.stringify(publishBody),
       });
       const data = await res.json();
       result = data as PublishResult;
@@ -309,6 +319,15 @@ function App() {
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
     setDemoState('success');
   }
+
+  const isSelfOnly = privacyLevel === 'SELF_ONLY';
+  const privacyBrandedConflict = brandContent && isSelfOnly;
+  const declarationText = brandContent
+    ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+    : "By posting, you agree to TikTok's Music Usage Confirmation";
+  const auditDeclarationLabel = brandContent
+    ? 'Branded Content Policy and Music Usage Confirmation agreed'
+    : 'Music Usage Confirmation agreed';
 
   if (path.includes('/terms')) {
     return (
@@ -695,9 +714,82 @@ function App() {
           />
         </div>
 
-        <div className="tt-meta-row">
-          <span className="tt-label">Privacy level</span>
-          <span className="tt-value">N/A — set by creator in TikTok inbox</span>
+        <div className="tt-field-row">
+          <label className="tt-label" htmlFor="privacy-level">Privacy level</label>
+          <select
+            id="privacy-level"
+            className="tt-select"
+            value={privacyLevel}
+            onChange={(e) => setPrivacyLevel(e.target.value as PrivacyLevel)}
+          >
+            <option value="PUBLIC_TO_EVERYONE">Public</option>
+            <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+            <option value="FOLLOWER_OF_CREATOR">Followers</option>
+            <option value="SELF_ONLY" disabled={brandContent}>Private</option>
+          </select>
+          {brandContent && (
+            <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
+          )}
+        </div>
+
+        <label className="tt-consent">
+          <input
+            type="checkbox"
+            checked={disclosureEnabled}
+            onChange={(e) => {
+              setDisclosureEnabled(e.target.checked);
+              if (!e.target.checked) {
+                setBrandOrganic(false);
+                setBrandContent(false);
+              }
+            }}
+          />
+          Disclose commercial content
+        </label>
+
+        {disclosureEnabled && (
+          <div className="tt-disclosure-options">
+            <label className="tt-consent">
+              <input
+                type="checkbox"
+                checked={brandOrganic}
+                onChange={(e) => setBrandOrganic(e.target.checked)}
+              />
+              Your brand (self-promotional)
+            </label>
+            <label className="tt-consent">
+              <input
+                type="checkbox"
+                checked={brandContent}
+                disabled={isSelfOnly}
+                onChange={(e) => setBrandContent(e.target.checked)}
+              />
+              Branded content (made for a third-party brand)
+            </label>
+            {isSelfOnly && (
+              <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
+            )}
+          </div>
+        )}
+
+        <p className="tt-declaration">{declarationText}</p>
+
+        <div className="tt-audit">
+          <h4 className="tt-audit-title">Audit Readiness</h4>
+          {disclosureEnabled && (
+            <div className="tt-status-row">
+              <span className="tt-label">Commercial disclosure</span>
+              <span className={`tt-badge ${privacyBrandedConflict ? 'tt-fail' : 'tt-ok'}`}>
+                {privacyBrandedConflict ? 'conflict' : 'valid'}
+              </span>
+            </div>
+          )}
+          <div className="tt-status-row">
+            <span className="tt-label">{auditDeclarationLabel}</span>
+            <span className={`tt-badge ${consent ? 'tt-ok' : 'tt-warn'}`}>
+              {consent ? 'agreed' : 'pending'}
+            </span>
+          </div>
         </div>
 
         <label className="tt-consent">
@@ -714,7 +806,7 @@ function App() {
             type="button"
             className="tt-btn"
             onClick={handlePublish}
-            disabled={!consent || publishState === 'loading'}
+            disabled={!consent || publishState === 'loading' || privacyBrandedConflict}
           >
             {publishState === 'loading' ? 'Uploading…' : 'Send to My TikTok Inbox'}
           </button>
