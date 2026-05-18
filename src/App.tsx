@@ -401,9 +401,8 @@ function App() {
         fd.append('disable_comment', String(!allowComment));
         fd.append('disable_duet', String(!allowDuet));
         fd.append('disable_stitch', String(!allowStitch));
-        fd.append('brand_content_toggle', String(disclosureEnabled));
+        fd.append('brand_content_toggle', String(disclosureEnabled && brandedContent && selectedPrivacy !== 'SELF_ONLY'));
         fd.append('brand_organic_toggle', String(disclosureEnabled && yourBrand));
-        fd.append('branded_content_toggle', String(disclosureEnabled && brandedContent && selectedPrivacy !== 'SELF_ONLY'));
         fd.append('video', selectedFile, selectedFile.name);
         res = await fetch(PUBLISH_URL, { method: 'POST', body: fd });
       } else {
@@ -422,9 +421,8 @@ function App() {
             disable_comment: !allowComment,
             disable_duet: !allowDuet,
             disable_stitch: !allowStitch,
-            brand_content_toggle: disclosureEnabled,
+            brand_content_toggle: disclosureEnabled && brandedContent && selectedPrivacy !== 'SELF_ONLY',
             brand_organic_toggle: disclosureEnabled && yourBrand,
-            branded_content_toggle: disclosureEnabled && brandedContent && selectedPrivacy !== 'SELF_ONLY',
           }),
         });
       }
@@ -1054,7 +1052,7 @@ function App() {
             >
               <option value="">— select privacy —</option>
               {(creatorInfoResult?.privacy_level_options ?? []).map((opt) => (
-                <option key={opt} value={opt}>{opt.replace(/_/g, ' ')}</option>
+                <option key={opt} value={opt} disabled={opt === 'SELF_ONLY' && brandedContent}>{opt.replace(/_/g, ' ')}</option>
               ))}
             </select>
           </div>
@@ -1062,6 +1060,12 @@ function App() {
           {creatorInfoLoaded && !selectedPrivacy && (
             <p className="field-hint">
               Available privacy options are provided by TikTok for the connected account.
+            </p>
+          )}
+
+          {brandedContent && (
+            <p className="field-hint field-hint--warn">
+              Branded content visibility cannot be set to private.
             </p>
           )}
 
@@ -1165,7 +1169,7 @@ function App() {
                   type="checkbox"
                   checked={brandedContent}
                   disabled={selectedPrivacy === 'SELF_ONLY'}
-                  onChange={(e) => setBrandedContent(e.target.checked)}
+                  onChange={(e) => { setBrandedContent(e.target.checked); setMusicConfirmation(false); }}
                 />
                 Branded content
                 {selectedPrivacy === 'SELF_ONLY' && (
@@ -1193,7 +1197,9 @@ function App() {
               checked={musicConfirmation}
               onChange={(e) => setMusicConfirmation(e.target.checked)}
             />
-            By posting, you agree to TikTok's Music Usage Confirmation
+            {brandedContent
+              ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+              : "By posting, you agree to TikTok's Music Usage Confirmation"}
           </label>
 
           <label className="tt-consent">
@@ -1272,10 +1278,10 @@ function App() {
               </div>
               <div className="checklist-row">
                 <span className={`checklist-dot ${musicConfirmation ? 'checklist-dot--pass' : 'checklist-dot--pending'}`} />
-                <span className="checklist-text">Music Usage Confirmation agreed</span>
+                <span className="checklist-text">{brandedContent ? 'Branded Content Policy and Music Usage Confirmation agreed' : 'Music Usage Confirmation agreed'}</span>
               </div>
               <div className="checklist-row">
-                <span className={`checklist-dot ${!disclosureEnabled || yourBrand || brandedContent ? 'checklist-dot--pass' : 'checklist-dot--pending'}`} />
+                <span className={`checklist-dot ${!disclosureEnabled || ((yourBrand || brandedContent) && !brandedContentPrivacyConflict) ? 'checklist-dot--pass' : 'checklist-dot--pending'}`} />
                 <span className="checklist-text">Commercial disclosure handled</span>
               </div>
               <div className="checklist-row">
