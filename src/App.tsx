@@ -231,6 +231,33 @@ function App() {
     window.location.href = buildAuthUrl(clientKey, redirectUri);
   }
 
+  function handleLoadCreatorInfo() {
+    if (!tokenResult?.openId || creatorInfoStatus === 'loading') return;
+    setCreatorInfoStatus('loading');
+    fetch(CREATOR_INFO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ open_id: tokenResult.openId }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('not ok');
+        return res.json();
+      })
+      .then((data) => {
+        setCreatorInfo({
+          privacyLevelOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options : [],
+          nickname: data.nickname ?? null,
+          avatarUrl: data.avatar_url ?? null,
+          maxVideoDurationSec: data.max_video_post_duration_sec ?? null,
+          commentDisabled: data.comment_disabled ?? false,
+          duetDisabled: data.duet_disabled ?? false,
+          stitchDisabled: data.stitch_disabled ?? false,
+        });
+        setCreatorInfoStatus('done');
+      })
+      .catch(() => setCreatorInfoStatus('error'));
+  }
+
   async function logToGoogleSheet(result: PublishResult, videoTitle: string, notes = ''): Promise<boolean> {
     const now = new Date().toISOString();
     const payload = {
@@ -363,7 +390,6 @@ function App() {
   const isSelfOnly = privacyLevel === 'SELF_ONLY';
   const privacyBrandedConflict = brandContent && isSelfOnly;
   const disclosureOptionSelected = brandOrganic || brandContent;
-  const disclosureValid = !disclosureEnabled || (disclosureOptionSelected && !privacyBrandedConflict);
   const declarationText = brandContent
     ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
     : "By posting, you agree to TikTok's Music Usage Confirmation";
@@ -381,6 +407,21 @@ function App() {
       ? creatorInfo.privacyLevelOptions
       : (['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'] as PrivacyLevel[])
   ).map((value) => ({ value, label: privacyOptionLabels[value] }));
+
+  const auditItems = [
+    { label: 'Official website and brand visible', pass: true },
+    { label: 'Terms and Privacy links in header', pass: true },
+    { label: 'TikTok OAuth connected', pass: tokenResult?.ok === true },
+    { label: 'Connected account identity visible', pass: !!(tokenResult?.openId) },
+    { label: 'Creator info loaded from TikTok', pass: creatorInfoStatus === 'done' && creatorInfo !== null },
+    { label: 'Privacy manually selected from TikTok options', pass: privacyLevel !== '' },
+    { label: 'Interaction controls visible', pass: true },
+    { label: auditDeclarationLabel, pass: consent },
+    { label: 'Commercial disclosure handled', pass: !disclosureEnabled || (disclosureOptionSelected && !privacyBrandedConflict) },
+    { label: 'Video preview visible', pass: true },
+    { label: 'User consent confirmed', pass: consent },
+    { label: 'Tokens stored server-side only', pass: true },
+  ];
 
   if (path.includes('/terms')) {
     return (
@@ -496,13 +537,50 @@ function App() {
       </header>
 
       <div className="dashboard">
-        {/* Column 1: TikTok Connection */}
+
+        {/* ── Column 1: TikTok Connection ── */}
         <section className="card tt-section">
           <h2>TikTok Connection</h2>
 
+          <div className="tt-status-row">
+            <span className="tt-label">Status</span>
+            <span className={`tt-badge ${tokenResult?.ok ? 'tt-ok' : 'conn-idle'}`}>
+              {tokenResult?.ok ? '● Connected' : '○ Not connected'}
+            </span>
+          </div>
+
+          {tokenResult?.openId && (
+            <div className="tt-meta-row">
+              <span className="tt-label">Account</span>
+              <span className="tt-value">
+                {creatorInfo?.nickname
+                  ? creatorInfo.nickname.toUpperCase()
+                  : `${tokenResult.openId.slice(0, 6)}…${tokenResult.openId.slice(-4)}`}
+              </span>
+            </div>
+          )}
+
+          {tokenResult?.openId && (
+            <div className="tt-meta-row">
+              <span className="tt-label">Connection ID</span>
+              <span className="tt-code">
+                {tokenResult.openId.slice(0, 6)}…{tokenResult.openId.slice(-4)}
+              </span>
+            </div>
+          )}
+
+          {clientKey && (
+            <div className="tt-meta-row">
+              <span className="tt-label">Client Key</span>
+              <span className="tt-code">
+                {clientKey.slice(0, 4)}…{clientKey.slice(-4)}
+              </span>
+            </div>
+          )}
+
           <div className="tt-meta-row">
-            <span className="tt-label">OAuth scope</span>
-            <span className="tt-value">video.publish</span>
+            <span className="tt-label">Scope</span>
+            <span className="tt-value">user.info.basic · video.publish</span>
           </div>
 
           <button
@@ -511,7 +589,7 @@ function App() {
             onClick={handleConnect}
             disabled={missingConfig}
           >
-            Connect TikTok Account
+            Connect TikTok
           </button>
 
           <p className="tt-warning">
@@ -520,9 +598,8 @@ function App() {
           </p>
 
           {callbackResult && (
-            <div className="tt-callback">
-              <hr className="tt-divider" />
-              <h3>OAuth Callback</h3>
+            <details className="tt-details">
+              <summary className="tt-details-summary">OAuth Callback</summary>
 
               <div className="tt-status-row">
                 <span className="tt-label">Authorization code</span>
@@ -551,7 +628,7 @@ function App() {
                     <span className="tt-badge tt-fail">{callbackResult.error}</span>
                   </div>
                   {callbackResult.errorDescription && (
-                    <div className="tt-status-row">
+                    <div className="tt-meta-row">
                       <span className="tt-label">Description</span>
                       <span className="tt-code">{callbackResult.errorDescription}</span>
                     </div>
@@ -563,13 +640,12 @@ function App() {
                 <strong>Connecting securely:</strong> Your account is being authorized
                 via TikTok's official OAuth flow.
               </p>
-            </div>
+            </details>
           )}
 
           {exchangeStatus !== 'idle' && (
-            <div className="tt-exchange">
-              <hr className="tt-divider" />
-              <h3>Token Exchange</h3>
+            <details className="tt-details" open>
+              <summary className="tt-details-summary">Token Exchange</summary>
 
               {exchangeStatus === 'skipped' && (
                 <p className="tt-warning">
@@ -626,29 +702,6 @@ function App() {
                           <span className="tt-value">{tokenResult.expiresIn}s</span>
                         </div>
                       )}
-
-                      {tokenResult.openId && (
-                        <div className="tt-status-row">
-                          <span className="tt-label">Connected account</span>
-                          <span className="tt-code">
-                            {creatorInfo?.nickname ||
-                              `${tokenResult.openId.slice(0, 4)}…${tokenResult.openId.slice(-4)}`}
-                          </span>
-                        </div>
-                      )}
-
-                      {creatorInfoStatus === 'loading' && (
-                        <p className="tt-exchange-loading">Loading creator info…</p>
-                      )}
-                      {creatorInfoStatus === 'error' && (
-                        <p className="tt-warning">Could not load creator info from TikTok.</p>
-                      )}
-                      {creatorInfo?.maxVideoDurationSec != null && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Max video duration</span>
-                          <span className="tt-value">{creatorInfo.maxVideoDurationSec}s</span>
-                        </div>
-                      )}
                     </>
                   ) : (
                     <>
@@ -676,25 +729,76 @@ function App() {
                   )}
                 </>
               )}
-            </div>
+            </details>
           )}
         </section>
 
-        {/* Column 2: Publish Video */}
+        {/* ── Column 2: Publish Video ── */}
         <section className="card tt-section">
           <h2>Publish Video</h2>
 
-          <div className="tt-meta-row">
-            <span className="tt-label">Video</span>
-            <a
-              className="tt-value"
-              href={TEST_VIDEO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              test-video.mp4
-            </a>
+          <div className="tt-video-preview">
+            <video
+              src={TEST_VIDEO_URL}
+              controls
+              muted
+              className="tt-preview-video"
+            />
+            <div className="tt-video-choose-row">
+              <p className="tt-preview-label">tiktok-sandbox-tiny-test.mp4</p>
+              <button type="button" className="tt-btn-choose" disabled>Choose video</button>
+            </div>
           </div>
+
+          <div className="tt-section-heading">Creator &amp; Privacy</div>
+
+          {tokenResult?.ok && !creatorInfo && creatorInfoStatus !== 'loading' && creatorInfoStatus !== 'error' && (
+            <div>
+              <p className="tt-helper-warn">Creator info required to confirm available privacy options.</p>
+              <button
+                type="button"
+                className="tt-btn-secondary"
+                onClick={handleLoadCreatorInfo}
+              >
+                Load Creator Info
+              </button>
+            </div>
+          )}
+
+          {creatorInfoStatus === 'loading' && (
+            <p className="tt-exchange-loading">Loading creator info…</p>
+          )}
+
+          {creatorInfoStatus === 'error' && (
+            <div>
+              <p className="tt-warning">Could not load creator info from TikTok.</p>
+              <button
+                type="button"
+                className="tt-btn-secondary"
+                onClick={handleLoadCreatorInfo}
+              >
+                Retry Creator Info
+              </button>
+            </div>
+          )}
+
+          {creatorInfo && (
+            <div className="tt-creator-row">
+              {creatorInfo.avatarUrl && (
+                <img
+                  src={creatorInfo.avatarUrl}
+                  alt={creatorInfo.nickname || 'Creator'}
+                  className="tt-avatar"
+                />
+              )}
+              <div className="tt-creator-info">
+                <span className="tt-creator-name">{creatorInfo.nickname || 'Connected account'}</span>
+                {creatorInfo.maxVideoDurationSec != null && (
+                  <span className="tt-creator-detail">Max {creatorInfo.maxVideoDurationSec}s</span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="tt-field-row">
             <label className="tt-label" htmlFor="publish-title">Title</label>
@@ -722,9 +826,6 @@ function App() {
                 </option>
               ))}
             </select>
-            {!creatorInfo && tokenResult?.ok && creatorInfoStatus !== 'loading' && (
-              <p className="tt-helper-warn">Creator info required to confirm available privacy options.</p>
-            )}
             {brandContent && (
               <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
             )}
@@ -732,7 +833,7 @@ function App() {
 
           <div className="tt-interaction-section">
             <span className="tt-label">Interaction controls</span>
-            <label className="tt-consent">
+            <label className={`tt-consent${creatorInfo?.commentDisabled ? ' tt-consent--disabled' : ''}`}>
               <input
                 type="checkbox"
                 checked={allowComments}
@@ -744,7 +845,7 @@ function App() {
             {creatorInfo?.commentDisabled && (
               <p className="tt-helper-warn">Comments are disabled for your account.</p>
             )}
-            <label className="tt-consent">
+            <label className={`tt-consent${creatorInfo?.duetDisabled ? ' tt-consent--disabled' : ''}`}>
               <input
                 type="checkbox"
                 checked={allowDuet}
@@ -756,7 +857,7 @@ function App() {
             {creatorInfo?.duetDisabled && (
               <p className="tt-helper-warn">Duet is disabled for your account.</p>
             )}
-            <label className="tt-consent">
+            <label className={`tt-consent${creatorInfo?.stitchDisabled ? ' tt-consent--disabled' : ''}`}>
               <input
                 type="checkbox"
                 checked={allowStitch}
@@ -769,6 +870,8 @@ function App() {
               <p className="tt-helper-warn">Stitch is disabled for your account.</p>
             )}
           </div>
+
+          <div className="tt-section-heading">Commercial Content Disclosure</div>
 
           <label className="tt-consent">
             <input
@@ -793,16 +896,16 @@ function App() {
                   checked={brandOrganic}
                   onChange={(e) => setBrandOrganic(e.target.checked)}
                 />
-                Your brand (self-promotional)
+                Your brand
               </label>
-              <label className="tt-consent">
+              <label className={`tt-consent${isSelfOnly ? ' tt-consent--disabled' : ''}`}>
                 <input
                   type="checkbox"
                   checked={brandContent}
                   disabled={isSelfOnly}
                   onChange={(e) => setBrandContent(e.target.checked)}
                 />
-                Branded content (made for a third-party brand)
+                Branded content
               </label>
               {isSelfOnly && (
                 <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
@@ -850,37 +953,16 @@ function App() {
           </div>
         </section>
 
-        {/* Column 3: Publish Status / Audit Readiness */}
+        {/* ── Column 3: Publish Status / Audit Readiness ── */}
         <section className="card tt-section">
           <h2>Publish Status</h2>
 
-          <div className="tt-audit">
-            <h4 className="tt-audit-title">Audit Readiness</h4>
-            {disclosureEnabled && (
-              <div className="tt-status-row">
-                <span className="tt-label">Commercial disclosure</span>
-                <span className={`tt-badge ${disclosureValid ? 'tt-ok' : 'tt-fail'}`}>
-                  {privacyBrandedConflict
-                    ? 'conflict'
-                    : !disclosureOptionSelected
-                    ? 'no option selected'
-                    : 'valid'}
-                </span>
-              </div>
-            )}
-            <div className="tt-status-row">
-              <span className="tt-label">{auditDeclarationLabel}</span>
-              <span className={`tt-badge ${consent ? 'tt-ok' : 'tt-warn'}`}>
-                {consent ? 'agreed' : 'pending'}
-              </span>
-            </div>
-          </div>
+          {publishState === 'idle' && (
+            <p className="tt-status-idle">Publish result will appear here after upload.</p>
+          )}
 
           {publishState !== 'idle' && (
             <div className="tt-exchange">
-              <hr className="tt-divider" />
-              <h3>Publish Result</h3>
-
               {publishState === 'loading' && (
                 <p className="tt-exchange-loading">Publishing video…</p>
               )}
@@ -904,7 +986,11 @@ function App() {
                   {publishResult.publishId != null && (
                     <div className="tt-meta-row">
                       <span className="tt-label">publishId</span>
-                      <span className="tt-code">{publishResult.publishId}</span>
+                      <span className="tt-code">
+                        {publishResult.publishId.length > 12
+                          ? `${publishResult.publishId.slice(0, 8)}…${publishResult.publishId.slice(-4)}`
+                          : publishResult.publishId}
+                      </span>
                     </div>
                   )}
 
@@ -934,14 +1020,30 @@ function App() {
                   )}
 
                   {publishResult.publishStatus != null && (
-                    <div className="tt-status-row">
-                      <span className="tt-label">publishStatus</span>
-                      <span className={`tt-badge ${
-                        publishResult.publishStatus === 'PUBLISH_COMPLETE' ? 'tt-ok' : 'tt-warn'
-                      }`}>
-                        {publishResult.publishStatus}
-                      </span>
-                    </div>
+                    <>
+                      <div className="tt-status-row">
+                        <span className="tt-label">publishStatus</span>
+                        <span className={`tt-badge ${
+                          publishResult.publishStatus === 'PUBLISH_COMPLETE'
+                            ? 'tt-ok'
+                            : publishResult.publishStatus === 'SEND_TO_USER_INBOX'
+                            ? 'tt-warn'
+                            : publishResult.publishStatus === 'FAILED'
+                            ? 'tt-fail'
+                            : 'tt-warn'
+                        }`}>
+                          {publishResult.publishStatus === 'SEND_TO_USER_INBOX'
+                            ? 'SEND_TO_USER_INBOX — not Direct Post'
+                            : publishResult.publishStatus}
+                        </span>
+                      </div>
+                      {publishResult.publishStatus === 'SEND_TO_USER_INBOX' && (
+                        <p className="tt-helper-warn">
+                          SEND_TO_USER_INBOX means content was routed to inbox, not published directly.
+                          This is a legacy/incompatible response for Direct Post.
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {publishResult.uploadedBytes != null && (
@@ -964,7 +1066,6 @@ function App() {
               {publishState === 'done' && publishResult?.publishId != null && (
                 <>
                   <hr className="tt-divider" />
-                  <h3>TikTok Status Refresh</h3>
 
                   <button
                     type="button"
@@ -972,7 +1073,7 @@ function App() {
                     onClick={handleRefreshStatus}
                     disabled={statusRefreshState === 'loading'}
                   >
-                    {statusRefreshState === 'loading' ? 'Checking…' : 'Refresh TikTok Status'}
+                    {statusRefreshState === 'loading' ? 'Checking…' : 'Refresh Status'}
                   </button>
 
                   {statusRefreshState === 'done' && statusRefreshResult && (
@@ -985,18 +1086,30 @@ function App() {
                       </div>
 
                       {statusRefreshResult.publishStatus != null && (
-                        <div className="tt-status-row">
-                          <span className="tt-label">publishStatus</span>
-                          <span className={`tt-badge ${
-                            statusRefreshResult.publishStatus === 'PUBLISH_COMPLETE'
-                              ? 'tt-ok'
-                              : statusRefreshResult.publishStatus === 'FAILED'
-                              ? 'tt-fail'
-                              : 'tt-warn'
-                          }`}>
-                            {statusRefreshResult.publishStatus}
-                          </span>
-                        </div>
+                        <>
+                          <div className="tt-status-row">
+                            <span className="tt-label">publishStatus</span>
+                            <span className={`tt-badge ${
+                              statusRefreshResult.publishStatus === 'PUBLISH_COMPLETE'
+                                ? 'tt-ok'
+                                : statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX'
+                                ? 'tt-warn'
+                                : statusRefreshResult.publishStatus === 'FAILED'
+                                ? 'tt-fail'
+                                : 'tt-warn'
+                            }`}>
+                              {statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX'
+                                ? 'SEND_TO_USER_INBOX — not Direct Post'
+                                : statusRefreshResult.publishStatus}
+                            </span>
+                          </div>
+                          {statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX' && (
+                            <p className="tt-helper-warn">
+                              SEND_TO_USER_INBOX means content was routed to inbox, not published directly.
+                              This is incompatible with Direct Post.
+                            </p>
+                          )}
+                        </>
                       )}
 
                       {statusRefreshResult.failReason != null && (
@@ -1047,7 +1160,84 @@ function App() {
               )}
             </div>
           )}
+
+          <hr className="tt-divider" />
+
+          <div className="tt-audit">
+            <h4 className="tt-audit-title">Audit Readiness</h4>
+            {auditItems.map((item) => (
+              <div key={item.label} className="tt-audit-item">
+                <span className={`tt-audit-dot ${item.pass ? 'tt-audit-dot--ok' : 'tt-audit-dot--pending'}`} />
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <details className="tt-details">
+            <summary className="tt-details-summary">Technical Details</summary>
+            <div className="tt-tech-details">
+              <div className="tt-meta-row">
+                <span className="tt-label">OAuth scope</span>
+                <span className="tt-value">user.info.basic · video.publish</span>
+              </div>
+              <div className="tt-meta-row">
+                <span className="tt-label">Upload mode</span>
+                <span className="tt-value">FILE_UPLOAD</span>
+              </div>
+              <div className="tt-meta-row">
+                <span className="tt-label">Video</span>
+                <span className="tt-code">tiktok-sandbox-tiny-test.mp4</span>
+              </div>
+              {publishResult?.connectionOpenIdMasked && (
+                <div className="tt-meta-row">
+                  <span className="tt-label">Connection open_id</span>
+                  <span className="tt-code">{publishResult.connectionOpenIdMasked}</span>
+                </div>
+              )}
+              {publishResult?.connectionScope && (
+                <div className="tt-meta-row">
+                  <span className="tt-label">Connection scope</span>
+                  <span className="tt-value">{publishResult.connectionScope}</span>
+                </div>
+              )}
+              {publishResult?.connectionLastTokenExchangeAt && (
+                <div className="tt-meta-row">
+                  <span className="tt-label">Last token exchange</span>
+                  <span className="tt-code">{publishResult.connectionLastTokenExchangeAt}</span>
+                </div>
+              )}
+              {publishResult?.connectionFound != null && (
+                <div className="tt-status-row">
+                  <span className="tt-label">Connection found</span>
+                  <span className={`tt-badge ${publishResult.connectionFound ? 'tt-ok' : 'tt-fail'}`}>
+                    {String(publishResult.connectionFound)}
+                  </span>
+                </div>
+              )}
+              {publishResult?.tokenAvailable != null && (
+                <div className="tt-status-row">
+                  <span className="tt-label">Token available</span>
+                  <span className={`tt-badge ${publishResult.tokenAvailable ? 'tt-ok' : 'tt-fail'}`}>
+                    {String(publishResult.tokenAvailable)}
+                  </span>
+                </div>
+              )}
+              {publishResult?.openIdPresent != null && (
+                <div className="tt-status-row">
+                  <span className="tt-label">open_id present</span>
+                  <span className={`tt-badge ${publishResult.openIdPresent ? 'tt-ok' : 'tt-fail'}`}>
+                    {String(publishResult.openIdPresent)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </details>
+
+          <p className="tt-disclaimer">
+            CreatorFlow Studio is an independent creator tool and is not affiliated with or endorsed by TikTok.
+          </p>
         </section>
+
       </div>
     </main>
   );
