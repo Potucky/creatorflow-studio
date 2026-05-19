@@ -115,6 +115,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let chunkSize: number | undefined;
   let totalChunkCount: number | undefined;
   let requestOpenId: string | undefined;
+  let brandOrganicToggle: boolean | undefined;
+  let brandContentToggle: boolean | undefined;
+  let disableComment: boolean | undefined;
+  let disableDuet: boolean | undefined;
+  let disableStitch: boolean | undefined;
 
   try {
     const body = (await req.json()) as {
@@ -128,6 +133,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       video_size?: number;
       chunk_size?: number;
       total_chunk_count?: number;
+      brand_organic_toggle?: boolean;
+      brand_content_toggle?: boolean;
+      disable_comment?: boolean;
+      disable_duet?: boolean;
+      disable_stitch?: boolean;
     };
     requestOpenId = body.open_id;
 
@@ -147,6 +157,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     videoSize = body.video_size;
     chunkSize = body.chunk_size;
     totalChunkCount = body.total_chunk_count;
+    if (typeof body.brand_organic_toggle === "boolean") brandOrganicToggle = body.brand_organic_toggle;
+    if (typeof body.brand_content_toggle === "boolean") brandContentToggle = body.brand_content_toggle;
+    if (typeof body.disable_comment === "boolean") disableComment = body.disable_comment;
+    if (typeof body.disable_duet === "boolean") disableDuet = body.disable_duet;
+    if (typeof body.disable_stitch === "boolean") disableStitch = body.disable_stitch;
   } catch {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
@@ -286,6 +301,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
           total_chunk_count: totalChunkCount,
         };
 
+  // ── Build post_info — privacy, disclosure, and interaction settings ─────────
+  // brand_content_toggle = third-party Branded Content only
+  // brand_organic_toggle = Your Brand / self-promotional only
+  // disable_comment/duet/stitch are booleans forwarded directly from the UI
+  const postInfo: Record<string, unknown> = { title };
+  if (privacyLevel !== undefined) postInfo.privacy_level = privacyLevel;
+  if (disableComment !== undefined) postInfo.disable_comment = disableComment;
+  if (disableDuet !== undefined) postInfo.disable_duet = disableDuet;
+  if (disableStitch !== undefined) postInfo.disable_stitch = disableStitch;
+  if (brandContentToggle !== undefined) postInfo.brand_content_toggle = brandContentToggle;
+  if (brandOrganicToggle !== undefined) postInfo.brand_organic_toggle = brandOrganicToggle;
+
   // ── Shared safe diagnostic fields (tokens and upload_url intentionally absent)
   const diagnostics = {
     uploadMode,
@@ -299,6 +326,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     ...(videoUrl !== undefined && { requestedVideoUrl: videoUrl }),
     requestedTitle: title,
     ...(privacyLevel !== undefined && { requestedPrivacyLevel: privacyLevel }),
+    ...(brandOrganicToggle !== undefined && { requestedBrandOrganicToggle: brandOrganicToggle }),
+    ...(brandContentToggle !== undefined && { requestedBrandContentToggle: brandContentToggle }),
+    ...(disableComment !== undefined && { requestedDisableComment: disableComment }),
+    ...(disableDuet !== undefined && { requestedDisableDuet: disableDuet }),
+    ...(disableStitch !== undefined && { requestedDisableStitch: disableStitch }),
     ...(videoSize !== undefined && { videoSize }),
     ...(chunkSize !== undefined && { chunkSize }),
     ...(totalChunkCount !== undefined && { totalChunkCount }),
@@ -309,14 +341,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let tikTokData: TikTokInitResponse;
   try {
     const tikTokRes = await fetch(
-      "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/",
+      "https://open.tiktokapis.com/v2/post/publish/video/init/",
       {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${connection!.access_token}`,
           "Content-Type": "application/json; charset=UTF-8",
         },
-        body: JSON.stringify({ source_info: sourceInfo }),
+        body: JSON.stringify({ source_info: sourceInfo, post_info: postInfo }),
       },
     );
 
