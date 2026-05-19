@@ -29,9 +29,9 @@ a:hover {
 
 /* ─── Layout ─── */
 .page {
-  width: min(960px, calc(100% - 32px));
+  width: min(1080px, calc(100% - 24px));
   margin: 0 auto;
-  padding: 48px 0 64px;
+  padding: 36px 0 56px;
 }
 
 /* ─── Cards ─── */
@@ -107,6 +107,116 @@ p {
   text-decoration: none;
 }
 
+/* ─── 3-column dashboard grid ─── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.dashboard-col {
+  padding: 20px 22px;
+  margin-bottom: 0;
+  border-radius: 16px;
+}
+
+.col-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 860px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Video preview (Column 2) ─── */
+.tt-video-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.tt-preview-video {
+  width: 100%;
+  max-height: 160px;
+  border-radius: 4px;
+  display: block;
+}
+
+.tt-preview-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 4px !important;
+  margin-bottom: 0 !important;
+}
+
+/* ─── Creator info row (Column 2) ─── */
+.tt-creator-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.tt-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.tt-creator-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-creator-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.tt-creator-detail {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* ─── Select ─── */
+.tt-select {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.tt-select:focus {
+  outline: 2px solid #fe2c55;
+  outline-offset: 1px;
+}
+
 /* ─── TikTok Demo Publish Flow ─── */
 .tt-publish-section {
   margin-top: 0;
@@ -155,6 +265,102 @@ p {
   height: 16px;
   accent-color: #fe2c55;
   cursor: pointer;
+}
+
+/* ─── Interaction controls section ─── */
+.tt-interaction-section {
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.tt-interaction-label {
+  display: block;
+  margin-bottom: 0.1rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tt-interaction-section .tt-consent {
+  margin-top: 0.4rem;
+}
+
+/* ─── Commercial disclosure options ─── */
+.tt-disclosure-options {
+  padding-left: 1.4rem;
+  margin-top: 0.25rem;
+}
+
+.tt-disclosure-options .tt-consent {
+  margin-top: 0.4rem;
+}
+
+/* ─── Declaration label / helper warn / declaration text ─── */
+.tt-declaration-label {
+  font-size: 0.8rem;
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 5px;
+  padding: 0.35rem 0.6rem;
+  margin-top: 0.5rem !important;
+  line-height: 1.5;
+}
+
+.tt-helper-warn {
+  font-size: 0.78rem;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 5px;
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.3rem !important;
+  line-height: 1.5;
+}
+
+.tt-declaration {
+  margin-top: 0.75rem !important;
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+/* ─── Audit readiness block ─── */
+.tt-audit {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.tt-audit-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  margin: 0 0 0.5rem;
+}
+
+/* ─── Status idle placeholder ─── */
+.tt-status-idle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin-top: 0.5rem !important;
+}
+
+/* ─── Disclaimer (Column 3) ─── */
+.tt-disclaimer {
+  margin-top: 1rem !important;
+  padding: 0.6rem 0.8rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: #075985;
+  line-height: 1.5;
 }
 
 /* ─── App icon in page headers ─── */
