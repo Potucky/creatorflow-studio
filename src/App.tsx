@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 const TIKTOK_AUTH_BASE = 'https://www.tiktok.com/v2/auth/authorize/';
@@ -158,6 +158,9 @@ function App() {
   const [allowComments, setAllowComments] = useState(false);
   const [allowDuet, setAllowDuet] = useState(false);
   const [allowStitch, setAllowStitch] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedObjectUrl, setSelectedObjectUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (path.includes('/terms')) {
@@ -236,6 +239,18 @@ function App() {
   function handleConnect() {
     if (!clientKey || !redirectUri) return;
     window.location.href = buildAuthUrl(clientKey, redirectUri);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (selectedObjectUrl) URL.revokeObjectURL(selectedObjectUrl);
+    if (file) {
+      setSelectedFile(file);
+      setSelectedObjectUrl(URL.createObjectURL(file));
+    } else {
+      setSelectedFile(null);
+      setSelectedObjectUrl(null);
+    }
   }
 
   function handleLoadCreatorInfo() {
@@ -813,14 +828,35 @@ function App() {
 
           <div className="tt-video-preview">
             <video
-              src={TEST_VIDEO_URL}
+              src={selectedObjectUrl ?? TEST_VIDEO_URL}
               controls
               muted
               className="tt-preview-video"
             />
             <div className="tt-video-choose-row">
-              <p className="tt-preview-label">tiktok-sandbox-tiny-test.mp4</p>
-              <button type="button" className="tt-btn-choose" disabled>Choose video</button>
+              <p className="tt-preview-label">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                aria-label="Choose video file"
+                className="tt-file-input-hidden"
+                disabled={publishState === 'loading'}
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                className="tt-btn-choose"
+                disabled={publishState === 'loading'}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                Choose video
+              </button>
             </div>
           </div>
 

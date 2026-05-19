@@ -350,18 +350,26 @@ p {
   margin: 0 !important;
 }
 
+.tt-file-input-hidden {
+  display: none;
+}
+
 /* ─── Choose video button ─── */
 .tt-btn-choose {
   font-size: 0.72rem;
   padding: 0.2rem 0.55rem;
   background: #f1f5f9;
-  color: #94a3b8;
+  color: #475569;
   border: 1px solid #e2e8f0;
   border-radius: 4px;
-  cursor: not-allowed;
+  cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
   font-family: inherit;
+}
+.tt-btn-choose:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 /* ─── Creator card (Column 2) ─── */
