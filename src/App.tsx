@@ -38,6 +38,9 @@ interface TokenExchangeResult {
   error?: string;
   error_description?: string | null;
   log_id?: string | null;
+  display_name?: string | null;
+  displayName?: string | null;
+  username?: string | null;
 }
 
 // Safe fields only — upload_url, access_token, refresh_token intentionally absent
@@ -86,6 +89,8 @@ type PrivacyLevel = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_O
 interface CreatorInfo {
   privacyLevelOptions: PrivacyLevel[];
   nickname: string | null;
+  creator_username: string | null;
+  creator_nickname: string | null;
   avatarUrl: string | null;
   maxVideoDurationSec: number | null;
   commentDisabled: boolean;
@@ -211,6 +216,8 @@ function App() {
         setCreatorInfo({
           privacyLevelOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options : [],
           nickname: data.nickname ?? null,
+          creator_username: data.creator_username ?? null,
+          creator_nickname: data.creator_nickname ?? null,
           avatarUrl: data.avatar_url ?? null,
           maxVideoDurationSec: data.max_video_post_duration_sec ?? null,
           commentDisabled: data.comment_disabled ?? false,
@@ -247,6 +254,8 @@ function App() {
         setCreatorInfo({
           privacyLevelOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options : [],
           nickname: data.nickname ?? null,
+          creator_username: data.creator_username ?? null,
+          creator_nickname: data.creator_nickname ?? null,
           avatarUrl: data.avatar_url ?? null,
           maxVideoDurationSec: data.max_video_post_duration_sec ?? null,
           commentDisabled: data.comment_disabled ?? false,
@@ -423,6 +432,16 @@ function App() {
     { label: 'Tokens stored server-side only', pass: true },
   ];
 
+  // Priority: creator_username → creator_nickname → tokenResult display fields → nickname → masked open_id
+  const accountDisplayName =
+    creatorInfo?.creator_username ||
+    creatorInfo?.creator_nickname ||
+    tokenResult?.display_name ||
+    tokenResult?.displayName ||
+    tokenResult?.username ||
+    creatorInfo?.nickname ||
+    null;
+
   if (path.includes('/terms')) {
     return (
       <main className="page">
@@ -553,8 +572,8 @@ function App() {
             <div className="tt-meta-row">
               <span className="tt-label">Account</span>
               <span className="tt-value">
-                {creatorInfo?.nickname
-                  ? creatorInfo.nickname.toUpperCase()
+                {accountDisplayName
+                  ? accountDisplayName.toUpperCase()
                   : `${tokenResult.openId.slice(0, 6)}…${tokenResult.openId.slice(-4)}`}
               </span>
             </div>
