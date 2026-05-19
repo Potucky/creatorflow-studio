@@ -474,3 +474,185 @@ details[open] > .tt-details-summary::before {
   color: #075985;
   line-height: 1.5;
 }
+
+/* ─── TikTok Connection panel wrapper ─── */
+/* .tt-connection-panel is applied to the left column section only.           */
+/* The shared .tt-* classes below (.tt-status-row, .tt-badge, .tt-btn, etc.) */
+/* are intentionally global — they are used across all three dashboard        */
+/* columns (Connection, Publish Video, Publish Status) in App.tsx.            */
+
+/* ─── TikTok Connection rows ─── */
+.tt-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 3px 0;
+  font-size: 0.8rem;
+}
+
+.tt-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 2px 0;
+  font-size: 0.8rem;
+}
+
+.tt-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.tt-value {
+  font-size: 0.8rem;
+  color: #334155;
+  text-align: right;
+}
+
+.tt-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ─── Badges ─── */
+.tt-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tt-ok {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.tt-fail {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.tt-warn {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ─── Buttons ─── */
+.tt-btn {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.55rem 1.1rem;
+  background: #fe2c55;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.tt-btn:hover:not(:disabled) {
+  background: #e6194a;
+}
+
+.tt-btn:disabled {
+  background: #fda4af;
+  cursor: not-allowed;
+}
+
+.tt-btn-secondary {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.tt-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.tt-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Warning / info note ─── */
+.tt-warning {
+  margin-top: 0.6rem !important;
+  font-size: 0.76rem;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 0.35rem 0.65rem;
+  line-height: 1.5;
+}
+
+.tt-connection-panel .tt-warning--callback {
+  margin-top: 0.5rem !important;
+}
+
+/* ─── Token exchange ─── */
+.tt-exchange {
+  margin-top: 0.5rem;
+}
+
+.tt-exchange-loading {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-style: italic;
+  margin: 0.3rem 0 !important;
+}
+
+/* ─── Divider ─── */
+.tt-divider {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.75rem 0;
+}
+
+/* ─── Refresh result ─── */
+.tt-refresh-result {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+/* ─── Google Sheet sync status ─── */
+.tt-sheet-sync {
+  margin-top: 0.4rem !important;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.tt-sheet-sync--ok {
+  color: #166534;
+}
+
+.tt-sheet-sync--fail {
+  color: #991b1b;
+}

@@ -539,7 +539,7 @@ function App() {
       <div className="dashboard">
 
         {/* ── Column 1: TikTok Connection ── */}
-        <section className="card tt-section">
+        <section className="card tt-section tt-connection-panel">
           <h2>TikTok Connection</h2>
 
           <div className="tt-status-row">
@@ -592,145 +592,200 @@ function App() {
             Connect TikTok
           </button>
 
+          {missingConfig && (
+            <p className="tt-warning">
+              <strong>Config missing:</strong> Client key or redirect URI is not set.
+              Connect TikTok is disabled until both are configured.
+            </p>
+          )}
+
           <p className="tt-warning">
             <strong>Privacy note:</strong> CreatorFlow Studio connects securely to TikTok.
             Your account credentials are never stored in your browser.
           </p>
 
-          {callbackResult && (
-            <details className="tt-details">
-              <summary className="tt-details-summary">OAuth Callback</summary>
+          <details className="tt-details">
+            <summary className="tt-details-summary">OAuth Callback</summary>
 
-              <div className="tt-status-row">
-                <span className="tt-label">Authorization code</span>
-                <span className={`tt-badge ${callbackResult.code ? 'tt-ok' : 'tt-fail'}`}>
-                  {callbackResult.code ? 'present' : 'missing'}
-                </span>
-              </div>
+            {!callbackResult ? (
+              <p className="tt-warning">No OAuth callback detected yet.</p>
+            ) : (
+              <>
+                <div className="tt-status-row">
+                  <span className="tt-label">Code present</span>
+                  <span className={`tt-badge ${callbackResult.code ? 'tt-ok' : 'tt-fail'}`}>
+                    {callbackResult.code ? 'yes' : 'no'}
+                  </span>
+                </div>
 
-              <div className="tt-status-row">
-                <span className="tt-label">State</span>
-                {callbackResult.returnedState === null ? (
-                  <span className="tt-badge tt-warn">not returned</span>
-                ) : callbackResult.savedState === null ? (
-                  <span className="tt-badge tt-warn">no saved state</span>
-                ) : callbackResult.returnedState === callbackResult.savedState ? (
-                  <span className="tt-badge tt-ok">matches</span>
-                ) : (
-                  <span className="tt-badge tt-fail">does not match</span>
-                )}
-              </div>
+                <div className="tt-status-row">
+                  <span className="tt-label">Returned state present</span>
+                  <span className={`tt-badge ${callbackResult.returnedState !== null ? 'tt-ok' : 'tt-fail'}`}>
+                    {callbackResult.returnedState !== null ? 'yes' : 'no'}
+                  </span>
+                </div>
 
-              {callbackResult.error && (
-                <>
-                  <div className="tt-status-row">
-                    <span className="tt-label">Error</span>
-                    <span className="tt-badge tt-fail">{callbackResult.error}</span>
-                  </div>
-                  {callbackResult.errorDescription && (
-                    <div className="tt-meta-row">
-                      <span className="tt-label">Description</span>
-                      <span className="tt-code">{callbackResult.errorDescription}</span>
+                <div className="tt-status-row">
+                  <span className="tt-label">Saved state present</span>
+                  <span className={`tt-badge ${callbackResult.savedState !== null ? 'tt-ok' : 'tt-fail'}`}>
+                    {callbackResult.savedState !== null ? 'yes' : 'no'}
+                  </span>
+                </div>
+
+                <div className="tt-status-row">
+                  <span className="tt-label">State match</span>
+                  <span className={`tt-badge ${
+                    callbackResult.returnedState !== null &&
+                    callbackResult.savedState !== null &&
+                    callbackResult.returnedState === callbackResult.savedState
+                      ? 'tt-ok'
+                      : 'tt-fail'
+                  }`}>
+                    {callbackResult.returnedState !== null &&
+                     callbackResult.savedState !== null &&
+                     callbackResult.returnedState === callbackResult.savedState
+                      ? 'yes'
+                      : 'no'}
+                  </span>
+                </div>
+
+                {callbackResult.error && (
+                  <>
+                    <div className="tt-status-row">
+                      <span className="tt-label">Error</span>
+                      <span className="tt-badge tt-fail">{callbackResult.error}</span>
                     </div>
-                  )}
-                </>
-              )}
+                    {callbackResult.errorDescription && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Description</span>
+                        <span className="tt-code">{callbackResult.errorDescription}</span>
+                      </div>
+                    )}
+                  </>
+                )}
 
-              <p className="tt-warning tt-warning--callback">
-                <strong>Connecting securely:</strong> Your account is being authorized
-                via TikTok's official OAuth flow.
-              </p>
-            </details>
-          )}
-
-          {exchangeStatus !== 'idle' && (
-            <details className="tt-details" open>
-              <summary className="tt-details-summary">Token Exchange</summary>
-
-              {exchangeStatus === 'skipped' && (
-                <p className="tt-warning">
-                  State mismatch — token exchange skipped for security.
+                <p className="tt-warning tt-warning--callback">
+                  <strong>Connecting securely:</strong> Your account is being authorized
+                  via TikTok's official OAuth flow.
                 </p>
-              )}
+              </>
+            )}
+          </details>
 
-              {exchangeStatus === 'loading' && (
-                <p className="tt-exchange-loading">Exchanging token with backend…</p>
-              )}
+          <details className="tt-details" open={exchangeStatus !== 'idle'}>
+            <summary className="tt-details-summary">Token Exchange</summary>
 
-              {exchangeStatus === 'done' && tokenResult && (
-                <>
-                  <div className="tt-status-row">
-                    <span className="tt-label">Status</span>
-                    <span className={`tt-badge ${tokenResult.ok ? 'tt-ok' : 'tt-fail'}`}>
-                      {tokenResult.ok ? 'ok' : 'error'}
-                    </span>
-                  </div>
+            <div className="tt-status-row">
+              <span className="tt-label">Exchange status</span>
+              <span className={`tt-badge ${
+                exchangeStatus === 'done' && tokenResult?.ok
+                  ? 'tt-ok'
+                  : exchangeStatus === 'skipped' || (exchangeStatus === 'done' && tokenResult && !tokenResult.ok)
+                  ? 'tt-fail'
+                  : exchangeStatus === 'loading'
+                  ? 'tt-warn'
+                  : 'conn-idle'
+              }`}>
+                {exchangeStatus}
+              </span>
+            </div>
 
-                  {tokenResult.ok ? (
-                    <>
-                      <div className="tt-status-row">
-                        <span className="tt-label">Token received</span>
-                        <span className={`tt-badge ${tokenResult.tokenReceived ? 'tt-ok' : 'tt-fail'}`}>
-                          {tokenResult.tokenReceived ? 'yes' : 'no'}
+            {exchangeStatus === 'idle' && (
+              <p className="tt-warning">No token exchange initiated yet.</p>
+            )}
+
+            {exchangeStatus === 'skipped' && (
+              <p className="tt-warning">
+                State mismatch — token exchange skipped for security.
+              </p>
+            )}
+
+            {exchangeStatus === 'loading' && (
+              <p className="tt-exchange-loading">Exchanging token with backend…</p>
+            )}
+
+            {exchangeStatus === 'done' && tokenResult && (
+              <>
+                <div className="tt-status-row">
+                  <span className="tt-label">ok</span>
+                  <span className={`tt-badge ${tokenResult.ok ? 'tt-ok' : 'tt-fail'}`}>
+                    {tokenResult.ok ? 'yes' : 'no'}
+                  </span>
+                </div>
+
+                {tokenResult.ok ? (
+                  <>
+                    <div className="tt-status-row">
+                      <span className="tt-label">Token received</span>
+                      <span className={`tt-badge ${tokenResult.tokenReceived ? 'tt-ok' : 'tt-fail'}`}>
+                        {tokenResult.tokenReceived ? 'yes' : 'no'}
+                      </span>
+                    </div>
+
+                    <div className="tt-status-row">
+                      <span className="tt-label">open_id received</span>
+                      <span className={`tt-badge ${tokenResult.openIdReceived ? 'tt-ok' : 'tt-fail'}`}>
+                        {tokenResult.openIdReceived ? 'yes' : 'no'}
+                      </span>
+                    </div>
+
+                    {tokenResult.openId && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">open_id</span>
+                        <span className="tt-code">
+                          {tokenResult.openId.slice(0, 6)}…{tokenResult.openId.slice(-4)}
                         </span>
                       </div>
+                    )}
 
-                      <div className="tt-status-row">
-                        <span className="tt-label">Open ID received</span>
-                        <span className={`tt-badge ${tokenResult.openIdReceived ? 'tt-ok' : 'tt-fail'}`}>
-                          {tokenResult.openIdReceived ? 'yes' : 'no'}
-                        </span>
+                    {tokenResult.scope && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Scope</span>
+                        <span className="tt-value">{tokenResult.scope}</span>
                       </div>
+                    )}
 
-                      {tokenResult.scope && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Scope</span>
-                          <span className="tt-value">{tokenResult.scope}</span>
-                        </div>
-                      )}
+                    {tokenResult.tokenType && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Token type</span>
+                        <span className="tt-value">{tokenResult.tokenType}</span>
+                      </div>
+                    )}
 
-                      {tokenResult.tokenType && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Token type</span>
-                          <span className="tt-value">{tokenResult.tokenType}</span>
-                        </div>
-                      )}
+                    {tokenResult.expiresIn != null && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Expires in</span>
+                        <span className="tt-value">{tokenResult.expiresIn}s</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {tokenResult.error && (
+                      <div className="tt-status-row">
+                        <span className="tt-label">Error</span>
+                        <span className="tt-badge tt-fail">{tokenResult.error}</span>
+                      </div>
+                    )}
 
-                      {tokenResult.expiresIn != null && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Expires in</span>
-                          <span className="tt-value">{tokenResult.expiresIn}s</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {tokenResult.error && (
-                        <div className="tt-status-row">
-                          <span className="tt-label">Error</span>
-                          <span className="tt-badge tt-fail">{tokenResult.error}</span>
-                        </div>
-                      )}
+                    {tokenResult.error_description && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Description</span>
+                        <span className="tt-value">{tokenResult.error_description}</span>
+                      </div>
+                    )}
 
-                      {tokenResult.error_description && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Description</span>
-                          <span className="tt-value">{tokenResult.error_description}</span>
-                        </div>
-                      )}
-
-                      {tokenResult.log_id && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">Log ID</span>
-                          <span className="tt-code">{tokenResult.log_id}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </details>
-          )}
+                    {tokenResult.log_id && (
+                      <div className="tt-meta-row">
+                        <span className="tt-label">Log ID</span>
+                        <span className="tt-code">{tokenResult.log_id}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </details>
         </section>
 
         {/* ── Column 2: Publish Video ── */}
