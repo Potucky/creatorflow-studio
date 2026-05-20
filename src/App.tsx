@@ -17,6 +17,8 @@ const GOOGLE_SHEET_WEBHOOK_URL =
   'https://script.google.com/macros/s/AKfycbztz1c-8Hy4pk6mQ8CYBWYXCoTPmmcJXnJ77GVk4w8mVs0-Kt2PA_uQ0sN-msEyx73I8w/exec';
 const CREATOR_INFO_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-creator-info';
+const CREATE_UPLOAD_URL =
+  'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-create-video-upload';
 
 interface CallbackResult {
   code: string | null;
@@ -282,7 +284,7 @@ function App() {
       .catch(() => setCreatorInfoStatus('error'));
   }
 
-  async function logToGoogleSheet(result: PublishResult, videoTitle: string, notes = ''): Promise<boolean> {
+  async function logToGoogleSheet(result: PublishResult, videoTitle: string, notes = '', videoSource = TEST_VIDEO_URL): Promise<boolean> {
     const now = new Date().toISOString();
     const payload = {
       ok: result.ok ?? null,
@@ -294,7 +296,7 @@ function App() {
       publishId: result.publishId ?? null,
       uploadedBytes: result.uploadedBytes ?? null,
       environment: 'sandbox',
-      videoUrl: TEST_VIDEO_URL,
+      videoUrl: videoSource,
       errorMessage: result.error ?? null,
       connectionOpenIdMasked: result.connectionOpenIdMasked ?? null,
       connectionScope: result.connectionScope ?? null,
@@ -322,34 +324,96 @@ function App() {
     setPublishState('loading');
     setPublishResult(null);
     setSheetSyncStatus('idle');
+
     let result: PublishResult;
-    try {
-      const publishBody: Record<string, unknown> = {
-        open_id: tokenResult?.openId ?? undefined,
-        upload_mode: 'FILE_UPLOAD',
-        upload_binary: true,
-        check_status: true,
-        video_url: TEST_VIDEO_URL,
-        title,
-        privacy_level: privacyLevel,
-      };
-      if (disclosureEnabled) {
-        publishBody.brand_organic_toggle = brandOrganic;
-        publishBody.brand_content_toggle = brandContent;
-      }
-      publishBody.disable_comment = !allowComments;
-      publishBody.disable_duet = !allowDuet;
-      publishBody.disable_stitch = !allowStitch;
-      const res = await fetch(PUBLISH_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(publishBody),
-      });
-      const data = await res.json();
-      result = data as PublishResult;
-    } catch {
-      result = { ok: false, error: 'Network error — could not reach publish endpoint.' };
+    // Safe source label for Google Sheet — never a signed URL or token
+    let videoSource = TEST_VIDEO_URL;
+
+    const publishBody: Record<string, unknown> = {
+      open_id: tokenResult?.openId ?? undefined,
+      upload_mode: 'FILE_UPLOAD',
+      upload_binary: true,
+      check_status: true,
+      title,
+      privacy_level: privacyLevel,
+    };
+    if (disclosureEnabled) {
+      publishBody.brand_organic_toggle = brandOrganic;
+      publishBody.brand_content_toggle = brandContent;
     }
+    publishBody.disable_comment = !allowComments;
+    publishBody.disable_duet = !allowDuet;
+    publishBody.disable_stitch = !allowStitch;
+
+    // ── Stage local file if one is selected ──────────────────────────────────
+    let stagingError: string | null = null;
+    if (selectedFile) {
+      try {
+        // 1. Request a signed upload target from the edge function
+        const createRes = await fetch(CREATE_UPLOAD_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            open_id: tokenResult?.openId ?? undefined,
+            file_name: selectedFile.name,
+            content_type: selectedFile.type || 'video/mp4',
+            file_size: selectedFile.size,
+          }),
+        });
+
+        if (!createRes.ok) {
+          const errData = await createRes.json().catch(() => ({})) as { error?: string };
+          stagingError = errData.error || `Upload staging failed (HTTP ${createRes.status})`;
+        } else {
+          const uploadInfo = await createRes.json() as {
+            bucket: string;
+            path: string;
+            signedUploadUrl: string;
+            sourceFilename: string;
+          };
+
+          // 2. PUT the file directly to Supabase Storage via the signed URL
+          const putRes = await fetch(uploadInfo.signedUploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': selectedFile.type || 'video/mp4' },
+            body: selectedFile,
+          });
+
+          if (!putRes.ok) {
+            stagingError = `Video staging upload failed (HTTP ${putRes.status}). Please try again.`;
+          } else {
+            // 3. Pass storage location to publish — no signed URL forwarded
+            publishBody.storage_bucket = uploadInfo.bucket;
+            publishBody.storage_path = uploadInfo.path;
+            publishBody.video_size = selectedFile.size;
+            publishBody.source_filename = uploadInfo.sourceFilename;
+            videoSource = uploadInfo.sourceFilename; // safe for Google Sheet
+          }
+        }
+      } catch {
+        stagingError = 'Network error — could not prepare video upload.';
+      }
+    } else {
+      // No local file selected — keep existing TEST_VIDEO_URL path unchanged
+      publishBody.video_url = TEST_VIDEO_URL;
+    }
+
+    if (stagingError) {
+      result = { ok: false, error: stagingError };
+    } else {
+      try {
+        const res = await fetch(PUBLISH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(publishBody),
+        });
+        const data = await res.json();
+        result = data as PublishResult;
+      } catch {
+        result = { ok: false, error: 'Network error — could not reach publish endpoint.' };
+      }
+    }
+
     setPublishResult(result);
     setPublishState('done');
     // Reset any previous refresh when a new upload is done
@@ -359,7 +423,7 @@ function App() {
 
     // Fire-and-forget: must not block or affect the upload result
     setSheetSyncStatus('loading');
-    logToGoogleSheet(result, title)
+    logToGoogleSheet(result, title, '', videoSource)
       .then((synced) => setSheetSyncStatus(synced ? 'saved' : 'failed'))
       .catch(() => setSheetSyncStatus('failed'));
   }
@@ -1296,7 +1360,7 @@ function App() {
               </div>
               <div className="tt-meta-row">
                 <span className="tt-label">Video</span>
-                <span className="tt-code">tiktok-sandbox-tiny-test.mp4</span>
+                <span className="tt-code">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</span>
               </div>
               {publishResult?.connectionOpenIdMasked && (
                 <div className="tt-meta-row">

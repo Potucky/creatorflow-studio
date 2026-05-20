@@ -116,11 +116,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     tikTokData = (await tikTokRes.json()) as TikTokTokenResponse;
   } catch (err) {
-    // Safe to log the error message — it contains no secrets.
-    console.error(
-      "[tiktok-token-exchange] Fetch to TikTok failed:",
-      (err as Error).message,
-    );
+    console.error("[tiktok-token-exchange] Fetch to TikTok threw an exception");
     return json({ ok: false, error: "Failed to reach TikTok token endpoint" }, 502);
   }
 
@@ -179,10 +175,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ ok: false, error: "token_storage_failed" }, 500);
     }
   } catch (err) {
-    console.error(
-      "[tiktok-token-exchange] DB upsert threw:",
-      (err as Error).message,
-    );
+    console.error("[tiktok-token-exchange] DB upsert threw an exception");
     return json({ ok: false, error: "token_storage_failed" }, 502);
   }
 
