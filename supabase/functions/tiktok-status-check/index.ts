@@ -139,7 +139,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const rows = (await dbRes.json()) as ConnectionRecord[];
     connection = rows.length > 0 ? rows[0] : null;
   } catch (err) {
-    console.error("[tiktok-status-check] DB fetch threw:", (err as Error).message);
+    console.error("[tiktok-status-check] DB fetch threw an exception");
     return json({ ok: false, error: "Failed to load TikTok connection" }, 502);
   }
 
@@ -188,7 +188,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }),
     });
   } catch (err) {
-    console.error("[tiktok-status-check] Status fetch threw:", (err as Error).message);
+    console.error("[tiktok-status-check] Status fetch threw an exception");
     return json({ ok: false, error: "Failed to reach TikTok API" }, 502);
   }
 });

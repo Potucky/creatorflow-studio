@@ -18,6 +18,7 @@
 //   TIKTOK_ENV                — must be "sandbox" or "production"; function refuses if missing or unknown
 
 const DB_TABLE = "creatorflow_tiktok_connections";
+const ALLOWED_STORAGE_BUCKET = "tiktok-video-staging";
 
 type UploadMode = "PULL_FROM_URL" | "FILE_UPLOAD";
 
@@ -123,6 +124,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let disableComment: boolean | undefined;
   let disableDuet: boolean | undefined;
   let disableStitch: boolean | undefined;
+  let storageBucket: string | undefined;
+  let storagePath: string | undefined;
+  let sourceFilename: string | undefined;
 
   try {
     const body = (await req.json()) as {
@@ -141,6 +145,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       disable_comment?: boolean;
       disable_duet?: boolean;
       disable_stitch?: boolean;
+      storage_bucket?: string;
+      storage_path?: string;
+      source_filename?: string;
     };
     requestOpenId = body.open_id;
 
@@ -165,6 +172,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (typeof body.disable_comment === "boolean") disableComment = body.disable_comment;
     if (typeof body.disable_duet === "boolean") disableDuet = body.disable_duet;
     if (typeof body.disable_stitch === "boolean") disableStitch = body.disable_stitch;
+    if (typeof body.storage_bucket === "string") storageBucket = body.storage_bucket;
+    if (typeof body.storage_path === "string") storagePath = body.storage_path;
+    if (typeof body.source_filename === "string") sourceFilename = body.source_filename;
   } catch {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
@@ -195,12 +205,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } else {
     // FILE_UPLOAD
     if (uploadBinary) {
-      // video_url required for server-side download; video_size derived from bytes if absent
-      if (!videoUrl) {
+      // Requires either video_url (existing) or storage_bucket + storage_path (staged upload)
+      const hasStoragePath = !!(storageBucket && storagePath);
+      if (!videoUrl && !hasStoragePath) {
         return json(
-          { ok: false, error: "Missing required field: video_url for FILE_UPLOAD with upload_binary" },
+          {
+            ok: false,
+            error:
+              "FILE_UPLOAD with upload_binary requires video_url or storage_bucket + storage_path",
+          },
           400,
         );
+      }
+      if (storageBucket && storageBucket !== ALLOWED_STORAGE_BUCKET) {
+        return json({ ok: false, error: "Invalid storage_bucket" }, 400);
       }
     } else {
       // init-only: video_size must be known up front
@@ -250,8 +268,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const rows = (await dbRes.json()) as ConnectionRecord[];
     connection = rows.length > 0 ? rows[0] : null;
-  } catch (err) {
-    console.error("[tiktok-publish-video] DB fetch threw:", (err as Error).message);
+  } catch {
+    console.error("[tiktok-publish-video] DB fetch error");
     return json({ ok: false, error: "Failed to load TikTok connection" }, 502);
   }
 
@@ -268,25 +286,86 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── Download video bytes (FILE_UPLOAD + upload_binary only) ────────────────
-  // videoSize may be derived here if the caller did not supply it.
+  // Branches on staged storage path (new) or video_url (existing).
+  // videoSize may be derived from the downloaded bytes if not supplied by caller.
   let videoBytes: ArrayBuffer | null = null;
   if (uploadMode === "FILE_UPLOAD" && uploadBinary) {
-    try {
-      const dlRes = await fetch(videoUrl!);
-      if (!dlRes.ok) {
-        console.error(`[tiktok-publish-video] Video download failed: HTTP ${dlRes.status}`);
-        return json(
-          { ok: false, error: "Failed to download video from video_url", downloadStatus: dlRes.status },
-          502,
+    if (storageBucket && storagePath) {
+      // Strict validation of staged storage input before service-role download
+      if (storageBucket !== ALLOWED_STORAGE_BUCKET) {
+        return json({ ok: false, error: "Invalid storage_bucket" }, 400);
+      }
+      if (
+        storagePath.includes("..") ||
+        storagePath.includes("?") ||
+        storagePath.includes("#") ||
+        storagePath.includes("\\") ||
+        /(%2f)/i.test(storagePath)
+      ) {
+        return json({ ok: false, error: "Invalid storage_path" }, 400);
+      }
+      const STORAGE_PATH_RE =
+        /^uploads\/([a-zA-Z0-9_]{1,6})\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-zA-Z0-9._-]{1,200}$/;
+      const pathMatch = STORAGE_PATH_RE.exec(storagePath);
+      if (!pathMatch) {
+        return json({ ok: false, error: "Invalid storage_path format" }, 400);
+      }
+      const expectedPrefix = requestOpenId!.slice(0, 6).replace(/[^a-zA-Z0-9]/g, "_");
+      if (pathMatch[1] !== expectedPrefix) {
+        return json({ ok: false, error: "storage_path prefix does not match open_id" }, 400);
+      }
+      // Download staged object from private bucket using service-role access.
+      // storage_path and service-role key are never logged or returned.
+      try {
+        const dlRes = await fetch(
+          `${supabaseUrl}/storage/v1/object/${storageBucket}/${storagePath}`,
+          {
+            headers: {
+              "Authorization": `Bearer ${serviceRoleKey}`,
+              "apikey": serviceRoleKey,
+            },
+          },
         );
+        if (!dlRes.ok) {
+          console.error(
+            `[tiktok-publish-video] Storage download failed: HTTP ${dlRes.status}`,
+          );
+          return json(
+            {
+              ok: false,
+              error: "Failed to download staged video from storage",
+              downloadStatus: dlRes.status,
+            },
+            502,
+          );
+        }
+        videoBytes = await dlRes.arrayBuffer();
+        if (videoSize === undefined) {
+          videoSize = videoBytes.byteLength;
+        }
+      } catch {
+        console.error("[tiktok-publish-video] Storage download error");
+        return json({ ok: false, error: "Failed to download staged video from storage" }, 502);
       }
-      videoBytes = await dlRes.arrayBuffer();
-      if (videoSize === undefined) {
-        videoSize = videoBytes.byteLength;
+    } else {
+      // Existing path: download from video_url
+      try {
+        const dlRes = await fetch(videoUrl!);
+        if (!dlRes.ok) {
+          console.error(`[tiktok-publish-video] Video download failed: HTTP ${dlRes.status}`);
+          return json(
+            { ok: false, error: "Failed to download video from video_url", downloadStatus: dlRes.status },
+            502,
+          );
+        }
+        videoBytes = await dlRes.arrayBuffer();
+        if (videoSize === undefined) {
+          videoSize = videoBytes.byteLength;
+        }
+      } catch (err) {
+        console.error("[tiktok-publish-video] Video download threw an exception");
+        return json({ ok: false, error: "Failed to download video from video_url" }, 502);
       }
-    } catch (err) {
-      console.error("[tiktok-publish-video] Video download threw:", (err as Error).message);
-      return json({ ok: false, error: "Failed to download video from video_url" }, 502);
     }
     // Apply defaults now that videoSize is known
     chunkSize = chunkSize ?? videoSize;
@@ -327,6 +406,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     ...(connection!.scope != null && { connectionScope: connection!.scope }),
     ...(connection!.last_token_exchange_at != null && { connectionLastTokenExchangeAt: connection!.last_token_exchange_at }),
     ...(videoUrl !== undefined && { requestedVideoUrl: videoUrl }),
+    ...(sourceFilename !== undefined && { sourceFilename }),
     requestedTitle: title,
     ...(privacyLevel !== undefined && { requestedPrivacyLevel: privacyLevel }),
     ...(brandOrganicToggle !== undefined && { requestedBrandOrganicToggle: brandOrganicToggle }),
@@ -374,7 +454,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
   } catch (err) {
-    console.error("[tiktok-publish-video] TikTok init threw:", (err as Error).message);
+    console.error("[tiktok-publish-video] TikTok init threw an exception");
     return json({ ok: false, error: "Failed to reach TikTok API" }, 502);
   }
 
@@ -438,8 +518,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (!putRes.ok) {
         console.error(`[tiktok-publish-video] Binary PUT failed: HTTP ${putRes.status}`);
       }
-    } catch (err) {
-      console.error("[tiktok-publish-video] Binary PUT threw:", (err as Error).message);
+    } catch {
+      console.error("[tiktok-publish-video] Binary PUT error");
       binaryUploadOk = false;
     }
   }
@@ -492,7 +572,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         console.error(`[tiktok-publish-video] Status check failed: HTTP ${statusRes.status}`);
       }
     } catch (err) {
-      console.error("[tiktok-publish-video] Status check threw:", (err as Error).message);
+      console.error("[tiktok-publish-video] Status check threw an exception");
       statusCheckOk = false;
     }
   }
