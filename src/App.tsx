@@ -780,10 +780,19 @@ function App() {
           {tokenResult?.openId && (
             <div className="tt-meta-row">
               <span className="tt-label">Account</span>
-              <span className="tt-value">
-                {accountDisplayName
-                  ? accountDisplayName.toUpperCase()
-                  : `${tokenResult.openId.slice(0, 6)}…${tokenResult.openId.slice(-4)}`}
+              <span className="tt-account-value">
+                {creatorInfo?.avatarUrl ? (
+                  <img src={creatorInfo.avatarUrl} alt={accountDisplayName || 'Account'} className="tt-account-value-avatar" />
+                ) : (
+                  <span className="tt-account-value-placeholder">
+                    {accountDisplayName ? accountDisplayName[0].toUpperCase() : '?'}
+                  </span>
+                )}
+                <span className="tt-account-value-name">
+                  {accountDisplayName
+                    ? accountDisplayName.toUpperCase()
+                    : `${tokenResult.openId.slice(0, 6)}…${tokenResult.openId.slice(-4)}`}
+                </span>
               </span>
             </div>
           )}
