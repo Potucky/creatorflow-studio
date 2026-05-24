@@ -265,6 +265,7 @@ function App() {
 
   const [title, setTitle] = useState(DEFAULT_TITLE);
   const [consent, setConsent] = useState(false);
+  const [musicUsageConfirmed, setMusicUsageConfirmed] = useState(false);
   const [publishState, setPublishState] = useState<PublishStatus>('idle');
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [sheetSyncStatus, setSheetSyncStatus] = useState<SheetSyncStatus>('idle');
@@ -592,9 +593,6 @@ function App() {
   const isSelfOnly = privacyLevel === 'SELF_ONLY';
   const privacyBrandedConflict = brandContent && isSelfOnly;
   const disclosureOptionSelected = brandOrganic || brandContent;
-  const declarationText = brandContent
-    ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
-    : "By posting, you agree to TikTok's Music Usage Confirmation";
   const auditDeclarationLabel = brandContent
     ? 'Branded Content Policy and Music Usage Confirmation agreed'
     : 'Music Usage Confirmation agreed';
@@ -618,7 +616,7 @@ function App() {
     { label: 'Creator info loaded from TikTok', pass: creatorInfoStatus === 'done' && creatorInfo !== null },
     { label: 'Privacy manually selected from TikTok options', pass: privacyLevel !== '' },
     { label: 'Interaction controls visible', pass: true },
-    { label: auditDeclarationLabel, pass: consent },
+    { label: auditDeclarationLabel, pass: musicUsageConfirmed },
     { label: 'Commercial disclosure handled', pass: !disclosureEnabled || (disclosureOptionSelected && !privacyBrandedConflict) },
     { label: 'Video preview visible', pass: true },
     { label: 'User consent confirmed', pass: consent },
@@ -1351,7 +1349,16 @@ function App() {
             </div>
           )}
 
-          <p className="tt-declaration">{declarationText}</p>
+          <label className="tt-consent">
+            <input
+              type="checkbox"
+              checked={musicUsageConfirmed}
+              onChange={(e) => setMusicUsageConfirmed(e.target.checked)}
+            />
+            {brandContent
+              ? "I agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+              : "I agree to TikTok's Music Usage Confirmation."}
+          </label>
 
           <label className="tt-consent">
             <input
@@ -1368,6 +1375,7 @@ function App() {
               className="tt-btn"
               onClick={handlePublish}
               disabled={
+                !musicUsageConfirmed ||
                 !consent ||
                 publishState === 'loading' ||
                 !privacyLevel ||
