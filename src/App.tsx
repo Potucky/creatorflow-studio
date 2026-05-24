@@ -100,6 +100,70 @@ interface CreatorInfo {
   stitchDisabled: boolean;
 }
 
+interface CreatorInfoResult {
+  creatorUsername?: unknown;
+  creatorNickname?: unknown;
+  avatarUrl?: unknown;
+  privacyLevelOptions?: unknown;
+  commentDisabled?: unknown;
+  duetDisabled?: unknown;
+  stitchDisabled?: unknown;
+  maxVideoPostDurationSec?: unknown;
+  creator_username?: unknown;
+  creator_nickname?: unknown;
+  nickname?: unknown;
+  avatar_url?: unknown;
+  privacy_level_options?: unknown;
+  comment_disabled?: unknown;
+  duet_disabled?: unknown;
+  stitch_disabled?: unknown;
+  max_video_post_duration_sec?: unknown;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function booleanOrFalse(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : false;
+}
+
+function asPrivacyLevels(value: unknown): PrivacyLevel[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is PrivacyLevel =>
+    item === 'PUBLIC_TO_EVERYONE' ||
+    item === 'MUTUAL_FOLLOW_FRIENDS' ||
+    item === 'FOLLOWER_OF_CREATOR' ||
+    item === 'SELF_ONLY',
+  );
+}
+
+function mapCreatorInfoResult(data: CreatorInfoResult): CreatorInfo {
+  const privacyLevelOptions = asPrivacyLevels(data.privacyLevelOptions);
+  const legacyPrivacyLevelOptions = asPrivacyLevels(data.privacy_level_options);
+  const creatorUsername = stringOrNull(data.creatorUsername) ?? stringOrNull(data.creator_username);
+  const creatorNickname =
+    stringOrNull(data.creatorNickname) ??
+    stringOrNull(data.creator_nickname) ??
+    stringOrNull(data.nickname);
+
+  return {
+    privacyLevelOptions: privacyLevelOptions.length > 0 ? privacyLevelOptions : legacyPrivacyLevelOptions,
+    nickname: creatorNickname,
+    creator_username: creatorUsername,
+    creator_nickname: creatorNickname,
+    avatarUrl: stringOrNull(data.avatarUrl) ?? stringOrNull(data.avatar_url),
+    maxVideoDurationSec: numberOrNull(data.maxVideoPostDurationSec) ?? numberOrNull(data.max_video_post_duration_sec),
+    commentDisabled: booleanOrFalse(data.commentDisabled ?? data.comment_disabled),
+    duetDisabled: booleanOrFalse(data.duetDisabled ?? data.duet_disabled),
+    stitchDisabled: booleanOrFalse(data.stitchDisabled ?? data.stitch_disabled),
+  };
+}
+
 function buildAuthUrl(clientKey: string, redirectUri: string): string {
   const state = crypto.randomUUID();
   sessionStorage.setItem(SESSION_STATE_KEY, state);
@@ -218,17 +282,7 @@ function App() {
         return res.json();
       })
       .then((data) => {
-        setCreatorInfo({
-          privacyLevelOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options : [],
-          nickname: data.nickname ?? null,
-          creator_username: data.creator_username ?? null,
-          creator_nickname: data.creator_nickname ?? null,
-          avatarUrl: data.avatar_url ?? null,
-          maxVideoDurationSec: data.max_video_post_duration_sec ?? null,
-          commentDisabled: data.comment_disabled ?? false,
-          duetDisabled: data.duet_disabled ?? false,
-          stitchDisabled: data.stitch_disabled ?? false,
-        });
+        setCreatorInfo(mapCreatorInfoResult(data));
         setCreatorInfoStatus('done');
       })
       .catch(() => setCreatorInfoStatus('error'));
@@ -268,17 +322,7 @@ function App() {
         return res.json();
       })
       .then((data) => {
-        setCreatorInfo({
-          privacyLevelOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options : [],
-          nickname: data.nickname ?? null,
-          creator_username: data.creator_username ?? null,
-          creator_nickname: data.creator_nickname ?? null,
-          avatarUrl: data.avatar_url ?? null,
-          maxVideoDurationSec: data.max_video_post_duration_sec ?? null,
-          commentDisabled: data.comment_disabled ?? false,
-          duetDisabled: data.duet_disabled ?? false,
-          stitchDisabled: data.stitch_disabled ?? false,
-        });
+        setCreatorInfo(mapCreatorInfoResult(data));
         setCreatorInfoStatus('done');
       })
       .catch(() => setCreatorInfoStatus('error'));
