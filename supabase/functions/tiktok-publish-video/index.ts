@@ -63,6 +63,18 @@ interface TikTokStatusResponse {
   };
 }
 
+function safeStatus(value?: string | null): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  return normalized ? normalized.slice(0, 80) : null;
+}
+
+function safeFailReason(value?: string | null): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, 240) : null;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── ALLOWED_ORIGIN is required — no wildcard fallback ──────────────────────
   const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN");
@@ -446,9 +458,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           ok: false,
           ...diagnostics,
           tikTokStatus: tikTokRes.status,
-          ...(tikTokData.error?.code !== undefined && { tikTokErrorCode: tikTokData.error.code }),
-          ...(tikTokData.error?.message !== undefined && { tikTokErrorMessage: tikTokData.error.message }),
-          ...(tikTokData.error?.log_id !== undefined && { tikTokLogId: tikTokData.error.log_id }),
+          error: "TikTok publish init failed",
         },
         502,
       );
@@ -464,9 +474,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       {
         ok: false,
         ...diagnostics,
-        tikTokErrorCode: tikTokData.error.code,
-        ...(tikTokData.error.message !== undefined && { tikTokErrorMessage: tikTokData.error.message }),
-        ...(tikTokData.error.log_id !== undefined && { tikTokLogId: tikTokData.error.log_id }),
+        error: "TikTok publish init failed",
       },
       502,
     );
@@ -525,6 +533,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const publishId = tikTokData.data?.publish_id;
+  const initOk = true;
   const uploadOk = binaryUploadAttempted ? binaryUploadOk === true : true;
 
   // ── Optional: check TikTok publish status ──────────────────────────────────
@@ -534,12 +543,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let statusCheckAttempted = false;
   let statusCheckOk: boolean | undefined;
   let statusCheckHttpStatus: number | undefined;
-  let publishStatus: string | undefined;
-  let failReason: string | undefined;
+  let publishStatus: string | null = null;
+  let failReason: string | null = null;
   let uploadedBytes: number | undefined;
-  let statusTikTokErrorCode: string | undefined;
-  let statusTikTokErrorMessage: string | undefined;
-  let statusTikTokLogId: string | undefined;
+  let statusCheckApiError = false;
 
   if (checkStatus && publishId) {
     statusCheckAttempted = true;
@@ -557,16 +564,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
 
       statusCheckHttpStatus = statusRes.status;
-      statusCheckOk = statusRes.ok;
-
       const statusData = (await statusRes.json()) as TikTokStatusResponse;
+      const statusTikTokOk = !statusData.error?.code || statusData.error.code === "ok";
+      statusCheckOk = statusRes.ok && statusTikTokOk;
+      statusCheckApiError = !statusTikTokOk;
 
-      if (statusData.data?.status !== undefined) publishStatus = statusData.data.status;
-      if (statusData.data?.fail_reason !== undefined) failReason = statusData.data.fail_reason;
+      publishStatus = safeStatus(statusData.data?.status);
+      failReason = safeFailReason(statusData.data?.fail_reason);
       if (statusData.data?.uploaded_bytes !== undefined) uploadedBytes = statusData.data.uploaded_bytes;
-      if (statusData.error?.code !== undefined) statusTikTokErrorCode = statusData.error.code;
-      if (statusData.error?.message !== undefined) statusTikTokErrorMessage = statusData.error.message;
-      if (statusData.error?.log_id !== undefined) statusTikTokLogId = statusData.error.log_id;
+      if (statusCheckApiError && failReason === null) failReason = "TikTok status check failed.";
 
       if (!statusRes.ok) {
         console.error(`[tiktok-publish-video] Status check failed: HTTP ${statusRes.status}`);
@@ -577,26 +583,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
+  const safePublishStatus = publishStatus ?? "PENDING_INIT";
+  const finalPublishComplete = safePublishStatus === "PUBLISH_COMPLETE";
+  const statusFailure =
+    safePublishStatus === "FAILED" ||
+    failReason !== null ||
+    statusCheckApiError;
+  const failed = !uploadOk || statusFailure;
+  const pending = !finalPublishComplete && !failed;
+  const status = finalPublishComplete ? "complete" : failed ? "failed" : "pending";
+
   // ── Return safe fields only ────────────────────────────────────────────────
   // upload_url, access_token, and refresh_token are intentionally absent.
   return json({
     ok: uploadOk,
     ...diagnostics,
     tikTokStatus: 200,
+    initOk,
+    uploadOk,
     ...(publishId !== undefined && { publishId }),
+    publishStatus: safePublishStatus,
+    finalPublishComplete,
+    pending,
+    failed,
+    status,
+    ...(!uploadOk && { error: "TikTok upload was not accepted" }),
     uploadUrlReceived,
     binaryUploadAttempted,
     ...(binaryUploadAttempted && { binaryUploadStatus }),
     ...(binaryUploadAttempted && { binaryUploadOk }),
-    ...(tikTokData.error?.log_id !== undefined && { tikTokLogId: tikTokData.error.log_id }),
     statusCheckAttempted,
     ...(statusCheckAttempted && { statusCheckOk }),
     ...(statusCheckAttempted && { statusCheckHttpStatus }),
-    ...(publishStatus !== undefined && { publishStatus }),
-    ...(failReason !== undefined && { failReason }),
+    ...(failReason !== null && { failReason }),
     ...(uploadedBytes !== undefined && { uploadedBytes }),
-    ...(statusTikTokErrorCode !== undefined && { statusTikTokErrorCode }),
-    ...(statusTikTokErrorMessage !== undefined && { statusTikTokErrorMessage }),
-    ...(statusTikTokLogId !== undefined && { statusTikTokLogId }),
   });
 });

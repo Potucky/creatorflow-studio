@@ -48,11 +48,19 @@ interface TokenExchangeResult {
 // Safe fields only — upload_url, access_token, refresh_token intentionally absent
 interface PublishResult {
   ok?: boolean;
+  initOk?: boolean;
+  uploadOk?: boolean;
   publishId?: string | null;
   binaryUploadOk?: boolean | null;
   binaryUploadStatus?: string | null;
+  checkOk?: boolean | null;
   statusCheckOk?: boolean | null;
   publishStatus?: string | null;
+  finalPublishComplete?: boolean;
+  pending?: boolean;
+  failed?: boolean;
+  status?: string | null;
+  failReason?: string | null;
   uploadedBytes?: number | null;
   error?: string;
   connectionOpenIdMasked?: string | null;
@@ -66,13 +74,16 @@ interface PublishResult {
 // Safe fields only — access_token intentionally absent
 interface StatusRefreshResult {
   ok: boolean;
+  checkOk?: boolean;
   statusCheckOk?: boolean;
   publishId?: string | null;
   publishStatus?: string | null;
+  finalPublishComplete?: boolean;
+  pending?: boolean;
+  failed?: boolean;
+  status?: string | null;
   failReason?: string | null;
   uploadedBytes?: number | null;
-  tikTokErrorCode?: string;
-  tikTokErrorMessage?: string;
   error?: string;
   connectionOpenIdMasked?: string | null;
   connectionScope?: string | null;
@@ -162,6 +173,51 @@ function mapCreatorInfoResult(data: CreatorInfoResult): CreatorInfo {
     duetDisabled: booleanOrFalse(data.duetDisabled ?? data.duet_disabled),
     stitchDisabled: booleanOrFalse(data.stitchDisabled ?? data.stitch_disabled),
   };
+}
+
+type PublishSemantics = Pick<
+  PublishResult,
+  'ok' | 'publishStatus' | 'finalPublishComplete' | 'pending' | 'failed' | 'status' | 'error' | 'failReason'
+>;
+
+function finalPublishComplete(result: PublishSemantics | null | undefined): boolean {
+  return result?.finalPublishComplete === true || result?.publishStatus === 'PUBLISH_COMPLETE';
+}
+
+function publishFailed(result: PublishSemantics | null | undefined): boolean {
+  return (
+    result?.failed === true ||
+    result?.publishStatus === 'FAILED' ||
+    result?.status === 'failed' ||
+    (result?.ok === false && result?.pending !== true && result?.finalPublishComplete !== true)
+  );
+}
+
+function publishPending(result: PublishSemantics | null | undefined): boolean {
+  if (!result || finalPublishComplete(result) || publishFailed(result)) return false;
+  return result.pending === true || result.status === 'pending' || !!result.publishStatus || result.ok === true;
+}
+
+function publishOutcomeClass(result: PublishSemantics | null | undefined): string {
+  if (finalPublishComplete(result)) return 'tt-ok';
+  if (publishFailed(result)) return 'tt-fail';
+  return 'tt-warn';
+}
+
+function publishOutcomeLabel(result: PublishSemantics | null | undefined): string {
+  if (finalPublishComplete(result)) return 'Published';
+  if (publishFailed(result)) return 'Failed';
+  if (publishPending(result)) return 'Submitted / processing';
+  return 'Pending';
+}
+
+function publishStatusLabel(status: string | null | undefined): string {
+  if (!status) return 'PENDING';
+  if (status === 'PUBLISH_COMPLETE') return 'PUBLISH_COMPLETE';
+  if (status === 'FAILED') return 'FAILED';
+  if (status === 'SEND_TO_USER_INBOX') return 'SEND_TO_USER_INBOX (processing)';
+  if (status === 'PENDING_INIT') return 'PENDING_INIT (submitted)';
+  return `${status} (processing)`;
 }
 
 function buildAuthUrl(clientKey: string, redirectUri: string): string {
@@ -332,12 +388,20 @@ function App() {
     const now = new Date().toISOString();
     const payload = {
       ok: result.ok ?? null,
+      initOk: result.initOk ?? null,
+      uploadOk: result.uploadOk ?? null,
       binaryUploadOk: result.binaryUploadOk ?? null,
       binaryUploadStatus: result.binaryUploadStatus ?? null,
+      checkOk: result.checkOk ?? null,
       statusCheckOk: result.statusCheckOk ?? null,
       publishStatus: result.publishStatus ?? null,
+      finalPublishComplete: result.finalPublishComplete ?? false,
+      pending: result.pending ?? null,
+      failed: result.failed ?? null,
+      status: result.status ?? null,
       videoTitle,
       publishId: result.publishId ?? null,
+      failReason: result.failReason ?? null,
       uploadedBytes: result.uploadedBytes ?? null,
       environment: 'sandbox',
       videoUrl: videoSource,
@@ -502,9 +566,15 @@ function App() {
     setStatusRefreshSheetSync('loading');
     const asPublishResult: PublishResult = {
       ok: result.ok,
+      checkOk: result.checkOk,
       publishId: result.publishId,
       statusCheckOk: result.statusCheckOk,
       publishStatus: result.publishStatus,
+      finalPublishComplete: result.finalPublishComplete,
+      pending: result.pending,
+      failed: result.failed,
+      status: result.status,
+      failReason: result.failReason,
       uploadedBytes: result.uploadedBytes,
       error: result.error,
       connectionOpenIdMasked: result.connectionOpenIdMasked,
@@ -1327,13 +1397,46 @@ function App() {
               {publishState === 'done' && publishResult && (
                 <>
                   <div className="tt-status-row">
-                    <span className="tt-label">ok</span>
-                    <span className={`tt-badge ${publishResult.ok ? 'tt-ok' : 'tt-fail'}`}>
-                      {String(publishResult.ok)}
+                    <span className="tt-label">TikTok publish</span>
+                    <span className={`tt-badge ${publishOutcomeClass(publishResult)}`}>
+                      {publishOutcomeLabel(publishResult)}
                     </span>
                   </div>
 
-                  {publishResult.error && (
+                  {publishPending(publishResult) && (
+                    <p className="tt-helper-warn">
+                      Waiting for TikTok to report PUBLISH_COMPLETE.
+                    </p>
+                  )}
+
+                  {publishResult.ok != null && (
+                    <div className="tt-status-row">
+                      <span className="tt-label">Request accepted</span>
+                      <span className={`tt-badge ${publishResult.ok ? 'tt-ok' : 'tt-fail'}`}>
+                        {publishResult.ok ? 'yes' : 'no'}
+                      </span>
+                    </div>
+                  )}
+
+                  {publishResult.initOk != null && (
+                    <div className="tt-status-row">
+                      <span className="tt-label">Init request</span>
+                      <span className={`tt-badge ${publishResult.initOk ? 'tt-ok' : 'tt-fail'}`}>
+                        {publishResult.initOk ? 'ok' : 'failed'}
+                      </span>
+                    </div>
+                  )}
+
+                  {publishResult.uploadOk != null && (
+                    <div className="tt-status-row">
+                      <span className="tt-label">Upload request</span>
+                      <span className={`tt-badge ${publishResult.uploadOk ? 'tt-ok' : 'tt-fail'}`}>
+                        {publishResult.uploadOk ? 'ok' : 'failed'}
+                      </span>
+                    </div>
+                  )}
+
+                  {publishResult.error && publishResult.error !== publishResult.failReason && (
                     <div className="tt-meta-row">
                       <span className="tt-label">error</span>
                       <span className="tt-code">{publishResult.error}</span>
@@ -1369,38 +1472,27 @@ function App() {
 
                   {publishResult.statusCheckOk != null && (
                     <div className="tt-status-row">
-                      <span className="tt-label">statusCheckOk</span>
+                      <span className="tt-label">Status check</span>
                       <span className={`tt-badge ${publishResult.statusCheckOk ? 'tt-ok' : 'tt-fail'}`}>
-                        {String(publishResult.statusCheckOk)}
+                        {publishResult.statusCheckOk ? 'ok' : 'failed'}
                       </span>
                     </div>
                   )}
 
                   {publishResult.publishStatus != null && (
-                    <>
-                      <div className="tt-status-row">
-                        <span className="tt-label">publishStatus</span>
-                        <span className={`tt-badge ${
-                          publishResult.publishStatus === 'PUBLISH_COMPLETE'
-                            ? 'tt-ok'
-                            : publishResult.publishStatus === 'SEND_TO_USER_INBOX'
-                            ? 'tt-warn'
-                            : publishResult.publishStatus === 'FAILED'
-                            ? 'tt-fail'
-                            : 'tt-warn'
-                        }`}>
-                          {publishResult.publishStatus === 'SEND_TO_USER_INBOX'
-                            ? 'SEND_TO_USER_INBOX — not Direct Post'
-                            : publishResult.publishStatus}
-                        </span>
-                      </div>
-                      {publishResult.publishStatus === 'SEND_TO_USER_INBOX' && (
-                        <p className="tt-helper-warn">
-                          SEND_TO_USER_INBOX means content was routed to inbox, not published directly.
-                          This is a legacy/incompatible response for Direct Post.
-                        </p>
-                      )}
-                    </>
+                    <div className="tt-status-row">
+                      <span className="tt-label">publishStatus</span>
+                      <span className={`tt-badge ${publishOutcomeClass(publishResult)}`}>
+                        {publishStatusLabel(publishResult.publishStatus)}
+                      </span>
+                    </div>
+                  )}
+
+                  {publishResult.failReason != null && (
+                    <div className="tt-meta-row">
+                      <span className="tt-label">failReason</span>
+                      <span className="tt-code">{publishResult.failReason}</span>
+                    </div>
                   )}
 
                   {publishResult.uploadedBytes != null && (
@@ -1436,37 +1528,36 @@ function App() {
                   {statusRefreshState === 'done' && statusRefreshResult && (
                     <div className="tt-refresh-result">
                       <div className="tt-status-row">
-                        <span className="tt-label">ok</span>
-                        <span className={`tt-badge ${statusRefreshResult.ok ? 'tt-ok' : 'tt-fail'}`}>
-                          {String(statusRefreshResult.ok)}
+                        <span className="tt-label">Final publish</span>
+                        <span className={`tt-badge ${publishOutcomeClass(statusRefreshResult)}`}>
+                          {publishOutcomeLabel(statusRefreshResult)}
                         </span>
                       </div>
 
+                      {publishPending(statusRefreshResult) && (
+                        <p className="tt-helper-warn">
+                          Waiting for TikTok to report PUBLISH_COMPLETE.
+                        </p>
+                      )}
+
+                      {(statusRefreshResult.checkOk ?? statusRefreshResult.statusCheckOk) != null && (
+                        <div className="tt-status-row">
+                          <span className="tt-label">Status check</span>
+                          <span className={`tt-badge ${
+                            (statusRefreshResult.checkOk ?? statusRefreshResult.statusCheckOk) ? 'tt-ok' : 'tt-fail'
+                          }`}>
+                            {(statusRefreshResult.checkOk ?? statusRefreshResult.statusCheckOk) ? 'ok' : 'failed'}
+                          </span>
+                        </div>
+                      )}
+
                       {statusRefreshResult.publishStatus != null && (
-                        <>
-                          <div className="tt-status-row">
-                            <span className="tt-label">publishStatus</span>
-                            <span className={`tt-badge ${
-                              statusRefreshResult.publishStatus === 'PUBLISH_COMPLETE'
-                                ? 'tt-ok'
-                                : statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX'
-                                ? 'tt-warn'
-                                : statusRefreshResult.publishStatus === 'FAILED'
-                                ? 'tt-fail'
-                                : 'tt-warn'
-                            }`}>
-                              {statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX'
-                                ? 'SEND_TO_USER_INBOX — not Direct Post'
-                                : statusRefreshResult.publishStatus}
-                            </span>
-                          </div>
-                          {statusRefreshResult.publishStatus === 'SEND_TO_USER_INBOX' && (
-                            <p className="tt-helper-warn">
-                              SEND_TO_USER_INBOX means content was routed to inbox, not published directly.
-                              This is incompatible with Direct Post.
-                            </p>
-                          )}
-                        </>
+                        <div className="tt-status-row">
+                          <span className="tt-label">publishStatus</span>
+                          <span className={`tt-badge ${publishOutcomeClass(statusRefreshResult)}`}>
+                            {publishStatusLabel(statusRefreshResult.publishStatus)}
+                          </span>
+                        </div>
                       )}
 
                       {statusRefreshResult.failReason != null && (
@@ -1483,21 +1574,7 @@ function App() {
                         </div>
                       )}
 
-                      {statusRefreshResult.tikTokErrorCode && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">tikTokErrorCode</span>
-                          <span className="tt-code">{statusRefreshResult.tikTokErrorCode}</span>
-                        </div>
-                      )}
-
-                      {statusRefreshResult.tikTokErrorMessage && (
-                        <div className="tt-meta-row">
-                          <span className="tt-label">tikTokErrorMessage</span>
-                          <span className="tt-code">{statusRefreshResult.tikTokErrorMessage}</span>
-                        </div>
-                      )}
-
-                      {statusRefreshResult.error && (
+                      {statusRefreshResult.error && statusRefreshResult.error !== statusRefreshResult.failReason && (
                         <div className="tt-meta-row">
                           <span className="tt-label">error</span>
                           <span className="tt-code">{statusRefreshResult.error}</span>

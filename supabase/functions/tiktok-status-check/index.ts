@@ -45,6 +45,18 @@ interface TikTokStatusResponse {
   };
 }
 
+function safeStatus(value?: string | null): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  return normalized ? normalized.slice(0, 80) : null;
+}
+
+function safeFailReason(value?: string | null): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, 240) : null;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN");
   if (!allowedOrigin) {
@@ -171,24 +183,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const tikTokOk = !statusData.error?.code || statusData.error.code === "ok";
+    const checkOk = statusRes.ok && tikTokOk;
+    const publishStatus = safeStatus(statusData.data?.status) ?? "UNKNOWN";
+    let failReason = safeFailReason(statusData.data?.fail_reason);
+    const statusFailed = publishStatus === "FAILED";
+
+    if (!failReason && statusFailed) {
+      failReason = "TikTok reported that publishing failed.";
+    } else if (!failReason && !checkOk) {
+      failReason = "TikTok status check failed.";
+    }
+
+    const finalPublishComplete = checkOk && publishStatus === "PUBLISH_COMPLETE";
+    const failed = !checkOk || statusFailed || failReason !== null;
+    const pending = checkOk && !finalPublishComplete && !failed;
+    const status = finalPublishComplete ? "complete" : failed ? "failed" : "pending";
+
     return json({
-      ok: statusRes.ok && tikTokOk,
-      statusCheckOk: statusRes.ok,
+      ok: finalPublishComplete,
+      checkOk,
+      statusCheckOk: checkOk,
       publishId,
-      publishStatus: statusData.data?.status ?? null,
-      failReason: statusData.data?.fail_reason ?? null,
+      publishStatus,
+      finalPublishComplete,
+      pending,
+      failed,
+      status,
+      ...(failReason !== null && { failReason, error: failReason }),
       uploadedBytes: statusData.data?.uploaded_bytes ?? null,
       connectionOpenIdMasked: maskOpenId(connection.open_id),
       ...(connection.scope != null && { connectionScope: connection.scope }),
       ...(connection.last_token_exchange_at != null && { connectionLastTokenExchangeAt: connection.last_token_exchange_at }),
-      ...(!tikTokOk && {
-        tikTokErrorCode: statusData.error?.code,
-        tikTokErrorMessage: statusData.error?.message,
-        tikTokLogId: statusData.error?.log_id,
-      }),
     });
   } catch (err) {
     console.error("[tiktok-status-check] Status fetch threw an exception");
-    return json({ ok: false, error: "Failed to reach TikTok API" }, 502);
+    return json({
+      ok: false,
+      checkOk: false,
+      statusCheckOk: false,
+      publishId,
+      publishStatus: "UNKNOWN",
+      finalPublishComplete: false,
+      pending: false,
+      failed: true,
+      status: "failed",
+      failReason: "Failed to reach TikTok API",
+      error: "Failed to reach TikTok API",
+    }, 502);
   }
 });
