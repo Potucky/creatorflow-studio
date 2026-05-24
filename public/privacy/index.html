@@ -142,6 +142,9 @@
       background: rgba(226, 232, 240, 0.95);
       color: var(--ink);
     }
+    @media (min-width: 901px) {
+      .sec { min-height: 205px; }
+    }
     @media (max-width: 900px) {
       main { width: calc(100vw - 32px); padding: 12px 0 24px; }
       .hero { grid-template-columns: 1fr; padding: 14px 22px; gap: 4px; }
@@ -178,6 +181,10 @@
           TikTok's official Content Posting API. The app is for use by the account
           owner — not a third-party posting service.
         </p>
+        <p>
+          You control which video and settings are submitted — the app takes no action
+          until you explicitly authorize publishing.
+        </p>
       </div>
 
       <div class="sec">
@@ -209,6 +216,10 @@
           Access and refresh tokens are handled server-side and are not stored in or
           exposed to the browser. Client secrets are never transmitted to the frontend.
           No credentials are exposed in publicly accessible code or storage.
+        </p>
+        <p>
+          Tokens are used only to operate authorized TikTok API requests on your behalf
+          and are not displayed in the app interface.
         </p>
       </div>
 

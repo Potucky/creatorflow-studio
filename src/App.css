@@ -113,25 +113,47 @@
   border-radius: 999px;
   background: rgba(241, 245, 249, 0.88);
   overflow: hidden;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.ui-account-chip:hover {
+  background: rgba(226, 232, 240, 0.95);
+  border-color: rgba(100, 116, 139, 0.28);
 }
 
 .ui-account-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 0 0 2px #ffffff;
 }
 
+.ui-account-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(100, 116, 139, 0.14);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 720;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
 .ui-account-name {
   min-width: 0;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-  font-weight: 660;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.01em;
 }
 
 /* ── Reusable chip / pill system ────────────────────────────────────── */
@@ -370,6 +392,23 @@ p {
   color: var(--ink);
   font-family: var(--font-mono);
   font-size: 0.74rem;
+}
+
+.tt-scope-value {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  max-width: 100%;
+  padding: 2px 9px;
+  border: 1px solid rgba(100, 116, 139, 0.16);
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.92);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 620;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tt-badge {
@@ -1248,6 +1287,10 @@ details[open] > .tt-details-summary::before {
   background: rgba(226, 232, 240, 0.95);
   color: var(--ink);
   text-decoration: none;
+}
+
+@media (min-width: 901px) {
+  .legal-sec { min-height: 205px; }
 }
 
 @media (max-width: 900px) {

@@ -542,6 +542,12 @@ function App() {
                 and submit creator-owned short-form videos through TikTok's official
                 Content Posting API. You are the publisher. The app is the tool.
               </p>
+              <p>
+                The tool is intended for owner-operated posting workflows, including
+                content review and demo publishing. It is not a third-party account
+                management service and must not be used to manage accounts you do not
+                own or control.
+              </p>
             </div>
 
             <div className="legal-sec">
@@ -552,6 +558,10 @@ function App() {
                 responsible for all content, captions, settings, and actions taken
                 through the app.
               </p>
+              <p>
+                Keep access to your connected TikTok account secure. Do not connect
+                accounts you do not own or are not authorized to operate.
+              </p>
             </div>
 
             <div className="legal-sec">
@@ -560,6 +570,10 @@ function App() {
                 The app only submits a video to TikTok when you explicitly authorize
                 the action. It does not post without your confirmation. You are
                 responsible for reviewing all publish settings before confirming.
+              </p>
+              <p>
+                Review settings including title, privacy level, commercial disclosure,
+                and interaction controls before each publish action.
               </p>
             </div>
 
@@ -581,6 +595,11 @@ function App() {
                 and Developer Policies, as well as applicable laws. The app must not
                 be used for scraping, spam, artificial engagement, unauthorized
                 account access, impersonation, or misleading activity.
+              </p>
+              <p>
+                Content submitted through the app may be rejected, limited, or removed
+                by TikTok in accordance with TikTok's platform policies and content
+                review processes.
               </p>
             </div>
 
@@ -631,6 +650,10 @@ function App() {
                 through TikTok's official Content Posting API. The app is for use by
                 the account owner — not a third-party posting service.
               </p>
+              <p>
+                You control which video and settings are submitted — the app takes no
+                action until you explicitly authorize publishing.
+              </p>
             </div>
 
             <div className="legal-sec">
@@ -663,6 +686,10 @@ function App() {
                 in or exposed to the browser. Client secrets are never transmitted to
                 the frontend. No credentials are exposed in publicly accessible code
                 or storage.
+              </p>
+              <p>
+                Tokens are used only to operate authorized TikTok API requests on your
+                behalf and are not displayed in the app interface.
               </p>
             </div>
 
@@ -710,8 +737,12 @@ function App() {
         <div className="app-header-account">
           {tokenResult?.ok && (accountDisplayName || tokenResult?.openId) ? (
             <div className="ui-account-chip">
-              {creatorInfo?.avatarUrl && (
+              {creatorInfo?.avatarUrl ? (
                 <img src={creatorInfo.avatarUrl} alt={accountDisplayName || 'Account'} className="ui-account-avatar" />
+              ) : (
+                <span className="ui-account-placeholder">
+                  {accountDisplayName ? accountDisplayName[0].toUpperCase() : '?'}
+                </span>
               )}
               <span className="ui-account-name">
                 {accountDisplayName
@@ -777,7 +808,7 @@ function App() {
 
           <div className="tt-meta-row">
             <span className="tt-label">Scope</span>
-            <span className="tt-value">user.info.basic · video.publish</span>
+            <span className="tt-scope-value">user.info.basic · video.publish</span>
           </div>
 
           <button
