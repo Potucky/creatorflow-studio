@@ -887,7 +887,7 @@ function App() {
         </section>
 
         {/* ── Column 2: Publish Video ── */}
-        <section className="card tt-section">
+        <section className="card tt-section tt-publish-panel">
           <h2>Publish Video</h2>
 
           <div className="tt-video-preview">
@@ -1063,7 +1063,7 @@ function App() {
           </label>
 
           {disclosureEnabled && (
-            <div className="tt-disclosure-options">
+            <div className={`tt-disclosure-options${!disclosureOptionSelected || privacyBrandedConflict ? ' tt-disclosure-options--invalid' : ''}`}>
               <label className="tt-consent">
                 <input
                   type="checkbox"
@@ -1128,11 +1128,11 @@ function App() {
         </section>
 
         {/* ── Column 3: Publish Status / Audit Readiness ── */}
-        <section className="card tt-section">
+        <section className="card tt-section tt-status-panel">
           <h2>Publish Status</h2>
 
           {publishState === 'idle' && (
-            <p className="tt-status-idle">Publish result will appear here after upload.</p>
+            <p className="tt-status-idle">Publish results and status checks will appear here after upload.</p>
           )}
 
           {publishState !== 'idle' && (
@@ -1340,7 +1340,10 @@ function App() {
           <div className="tt-audit">
             <h4 className="tt-audit-title">Audit Readiness</h4>
             {auditItems.map((item) => (
-              <div key={item.label} className="tt-audit-item">
+              <div
+                key={item.label}
+                className={`tt-audit-item ${item.pass ? 'tt-audit-item--ok' : 'tt-audit-item--pending'}`}
+              >
                 <span className={`tt-audit-dot ${item.pass ? 'tt-audit-dot--ok' : 'tt-audit-dot--pending'}`} />
                 <span>{item.label}</span>
               </div>
