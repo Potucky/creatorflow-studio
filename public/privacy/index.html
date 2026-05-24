@@ -7,91 +7,239 @@
   <title>CreatorFlow Studio | Privacy Policy</title>
   <style>
     :root {
-      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
       --ink: #101828;
-      --text: #344054;
+      --ink-soft: #344054;
       --muted: #667085;
       --border: rgba(16, 24, 40, 0.1);
-      --shadow: 0 24px 70px rgba(15, 23, 42, 0.1), 0 1px 0 rgba(255, 255, 255, 0.86) inset;
+      --shadow-hero: 0 24px 70px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.86) inset;
+      --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.05), 0 1px 0 rgba(255, 255, 255, 0.86) inset;
     }
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: var(--font-sans);
+      font-family: var(--font);
       background: linear-gradient(135deg, #fbfcff 0%, #f1f4f8 48%, #f8fafc 100%);
-      color: var(--text);
-      line-height: 1.65;
+      color: var(--ink-soft);
+      line-height: 1.58;
       -webkit-font-smoothing: antialiased;
     }
     main {
-      width: min(900px, calc(100% - 32px));
+      width: min(1300px, calc(100vw - 48px));
       margin: 0 auto;
-      padding: 56px 0;
+      padding: 12px 0 24px;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 24px);
     }
-    section {
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 24px;
+      margin-bottom: 12px;
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.86);
-      border-radius: 26px;
-      padding: 36px;
-      box-shadow: var(--shadow);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow-hero);
+      -webkit-backdrop-filter: blur(18px);
       backdrop-filter: blur(18px);
     }
-    .brand-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .hero-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-title {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 760;
+      line-height: 1.2;
+      color: var(--ink);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .hero-date {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+      text-align: right;
+      white-space: nowrap;
+    }
     .brand-icon {
-      width: 48px;
-      height: 48px;
+      width: 42px;
+      height: 42px;
       flex-shrink: 0;
-      padding: 8px;
+      padding: 7px;
       border: 1px solid rgba(134, 59, 255, 0.16);
-      border-radius: 16px;
+      border-radius: 15px;
       background: linear-gradient(180deg, #ffffff 0%, #f3f0ff 100%);
       box-shadow: 0 10px 26px rgba(91, 33, 182, 0.12);
     }
-    .brand-name { font-size: 20px; font-weight: 760; color: var(--ink); }
-    .brand-divider { border: none; border-top: 1px solid var(--border); margin: 0 0 24px; }
-    h1 { font-size: clamp(34px, 6vw, 48px); line-height: 1.05; margin: 0 0 8px; color: var(--ink); }
-    h2 { margin: 30px 0 8px; color: var(--ink); font-size: 20px; line-height: 1.2; }
-    p { color: var(--text); font-size: 17px; margin: 0 0 12px; }
-    a { color: #175cd3; font-weight: 650; text-decoration: none; text-underline-offset: 3px; }
-    a:hover { text-decoration: underline; }
-    a:focus-visible { outline: 3px solid rgba(10, 132, 255, 0.28); outline-offset: 3px; }
-    @media (max-width: 640px) {
-      main { width: min(100% - 24px, 900px); padding: 24px 0; }
-      section { padding: 24px; border-radius: 22px; }
-      p { font-size: 16px; }
+    .brand-name {
+      font-size: 0.98rem;
+      font-weight: 760;
+      color: var(--ink);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex: 1;
+      align-content: stretch;
+    }
+    .sec {
+      padding: 13px 16px;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: var(--shadow-card);
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 1.0rem;
+      font-weight: 760;
+      line-height: 1.2;
+      color: var(--ink);
+    }
+    p {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      line-height: 1.58;
+      color: var(--ink-soft);
+    }
+    p:last-child { margin-bottom: 0; }
+    ul {
+      margin: 5px 0 8px;
+      padding-left: 16px;
+      list-style: disc;
+    }
+    ul:last-child { margin-bottom: 0; }
+    li {
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .footer { margin-top: 10px; }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 16px;
+      border: 1px solid rgba(100, 116, 139, 0.18);
+      border-radius: 999px;
+      background: rgba(241, 245, 249, 0.88);
+      color: #64748b;
+      font-size: 0.86rem;
+      font-weight: 650;
+      text-decoration: none;
+      transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+    }
+    .back-link:hover {
+      border-color: rgba(100, 116, 139, 0.3);
+      background: rgba(226, 232, 240, 0.95);
+      color: var(--ink);
+    }
+    @media (max-width: 900px) {
+      main { width: calc(100vw - 32px); padding: 12px 0 24px; }
+      .hero { grid-template-columns: 1fr; padding: 14px 22px; gap: 4px; }
+      .hero-title { text-align: left; }
+      .hero-date { text-align: left; }
+      .grid { grid-template-columns: 1fr; gap: 10px; }
+    }
+    @media (max-width: 560px) {
+      main { width: calc(100vw - 24px); padding: 10px 0 24px; }
+      .hero { padding: 14px 18px; border-radius: 22px; }
+      .sec { padding: 13px 14px; border-radius: 18px; }
     }
   </style>
 </head>
 <body>
   <main>
-    <section>
-      <div class="brand-header">
+
+    <div class="hero">
+      <div class="hero-brand">
         <img src="/creatorflow-studio/favicon.svg" alt="CreatorFlow Studio" class="brand-icon" />
         <span class="brand-name">CreatorFlow Studio</span>
       </div>
-      <hr class="brand-divider" />
-      <h1>Privacy Policy</h1>
-      <p>Last updated: May 4, 2026</p>
+      <h1 class="hero-title">Privacy Policy</h1>
+      <span class="hero-date">Last updated: May 24, 2026</span>
+    </div>
 
-      <h2>Overview</h2>
-      <p>CreatorFlow Studio is a creator tool that helps the account owner connect their own TikTok account and send creator-owned short-form videos to TikTok for review and publishing through TikTok's official Content Posting API.</p>
+    <div class="grid">
 
-      <h2>Information We May Access</h2>
-      <p>With user authorization, the application may access basic connected account information and permissions required to upload or publish video content.</p>
+      <div class="sec">
+        <h2>What CreatorFlow Studio Does</h2>
+        <p>
+          CreatorFlow Studio is a creator-owned TikTok publishing tool. Connect your
+          own TikTok account and submit creator-owned short-form videos through
+          TikTok's official Content Posting API. The app is for use by the account
+          owner — not a third-party posting service.
+        </p>
+      </div>
 
-      <h2>How Information Is Used</h2>
-      <p>Information is used only to authenticate the account owner and perform authorized content upload or publishing actions through TikTok's API.</p>
+      <div class="sec">
+        <h2>Information We Access</h2>
+        <p>With your authorization, the app may access:</p>
+        <ul>
+          <li>Your TikTok account identifier (open_id) to identify the connected account</li>
+          <li>Your display name and avatar to show account identity in the app</li>
+          <li>Publishing permissions from TikTok OAuth (user.info.basic, video.publish)</li>
+          <li>Video title, privacy level, disclosure, and interaction settings you provide</li>
+        </ul>
+      </div>
 
-      <h2>Data Sharing</h2>
-      <p>The application does not sell personal information. Data is not shared with third parties except as required to operate the integration with TikTok's API.</p>
+      <div class="sec">
+        <h2>How Information Is Used</h2>
+        <p>Information is used solely to:</p>
+        <ul>
+          <li>Authenticate your connected TikTok account</li>
+          <li>Display your connected account identity in the app</li>
+          <li>Submit videos you authorize for publishing through TikTok's API</li>
+          <li>Check and display the status of your publish requests</li>
+          <li>Support audit and troubleshooting of authorized actions</li>
+        </ul>
+      </div>
 
-      <h2>Data Storage</h2>
-      <p>API credentials and access tokens must be stored securely and must not be exposed publicly or committed to public repositories.</p>
+      <div class="sec">
+        <h2>Token Handling &amp; Storage</h2>
+        <p>
+          Access and refresh tokens are handled server-side and are not stored in or
+          exposed to the browser. Client secrets are never transmitted to the frontend.
+          No credentials are exposed in publicly accessible code or storage.
+        </p>
+      </div>
 
-      <p><a href="/creatorflow-studio/">Back to home</a></p>
-    </section>
+      <div class="sec">
+        <h2>Data Sharing &amp; User Control</h2>
+        <p>
+          Your data is not sold and is not shared with unrelated third parties.
+          Information is sent to TikTok only as required for the authorized API
+          integration. You can revoke access at any time through TikTok's connected
+          apps settings. To request data deletion or access, contact the app owner
+          via the project repository.
+        </p>
+      </div>
+
+      <div class="sec">
+        <h2>Security &amp; TikTok Affiliation</h2>
+        <p>
+          Reasonable technical safeguards protect the app and its integrations. No
+          credentials or tokens are exposed publicly. No system can guarantee perfect
+          security — use the app over a secure connection. CreatorFlow Studio is an
+          independent creator tool, not affiliated with, endorsed by, or sponsored by
+          TikTok or its parent company.
+        </p>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <a href="/creatorflow-studio/" class="back-link">← Back to home</a>
+    </div>
+
   </main>
 </body>
 </html>

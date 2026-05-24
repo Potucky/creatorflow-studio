@@ -524,44 +524,87 @@ function App() {
   if (path.includes('/terms')) {
     return (
       <main className="page">
-        <section className="card">
-          <div className="page-header-row">
-            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="CreatorFlow Studio" className="app-icon" />
-            <span className="brand-name">CreatorFlow Studio</span>
+        <div className="legal-wrap">
+          <div className="legal-hero">
+            <div className="legal-hero-brand">
+              <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="CreatorFlow Studio" className="app-icon" />
+              <span className="brand-name">CreatorFlow Studio</span>
+            </div>
+            <h1 className="legal-hero-title">Terms of Service</h1>
+            <span className="legal-hero-date">Last updated: May 24, 2026</span>
           </div>
-          <hr className="brand-divider" />
-          <h1>Terms of Service</h1>
-          <p className="muted">Last updated: May 4, 2026</p>
 
-          <h2>Purpose</h2>
-          <p>
-            CreatorFlow Studio is a creator tool intended to help the account
-            owner connect their own TikTok account, review their creator-owned videos,
-            and send them to TikTok for publishing through TikTok's official Content
-            Posting API.
-          </p>
+          <div className="legal-grid">
+            <div className="legal-sec">
+              <h2>The Service</h2>
+              <p>
+                CreatorFlow Studio helps a creator connect their own TikTok account
+                and submit creator-owned short-form videos through TikTok's official
+                Content Posting API. You are the publisher. The app is the tool.
+              </p>
+            </div>
 
-          <h2>Authorized Use</h2>
-          <p>
-            The application may only be used by the authorized account owner for
-            content that they own or have permission to publish.
-          </p>
+            <div className="legal-sec">
+              <h2>Account &amp; User Responsibility</h2>
+              <p>
+                You must own or control the TikTok account you connect. By connecting
+                an account, you confirm you are authorized to publish to it. You are
+                responsible for all content, captions, settings, and actions taken
+                through the app.
+              </p>
+            </div>
 
-          <h2>Prohibited Use</h2>
-          <p>
-            The application must not be used for scraping, spam, artificial engagement,
-            unauthorized posting, impersonation, misleading activity, or any activity
-            that violates TikTok's policies or applicable law.
-          </p>
+            <div className="legal-sec">
+              <h2>Authorized Publishing &amp; Confirmation</h2>
+              <p>
+                The app only submits a video to TikTok when you explicitly authorize
+                the action. It does not post without your confirmation. You are
+                responsible for reviewing all publish settings before confirming.
+              </p>
+            </div>
 
-          <h2>User Responsibility</h2>
-          <p>
-            The user is responsible for reviewing all content, captions, and publishing
-            settings before posting.
-          </p>
+            <div className="legal-sec">
+              <h2>Commercial Disclosure &amp; Media Rights</h2>
+              <p>
+                You are responsible for accurately indicating whether your content is
+                promotional, branded, or a paid partnership, as required by TikTok's
+                policies. You are also responsible for having rights to all content,
+                music, video clips, and media you publish. The app provides disclosure
+                fields — use them correctly.
+              </p>
+            </div>
 
-          <a href={import.meta.env.BASE_URL}>Back to home</a>
-        </section>
+            <div className="legal-sec">
+              <h2>TikTok Compliance</h2>
+              <p>
+                You must comply with TikTok's Community Guidelines, Terms of Service,
+                and Developer Policies, as well as applicable laws. The app must not
+                be used for scraping, spam, artificial engagement, unauthorized
+                account access, impersonation, or misleading activity.
+              </p>
+            </div>
+
+            <div className="legal-sec">
+              <h2>Availability, Limits &amp; Contact</h2>
+              <p>
+                The service may be updated, paused, or discontinued at any time,
+                provided as-is without warranties. TikTok API changes, rate limits,
+                or policy updates may affect functionality; CreatorFlow Studio is not
+                liable for publishing failures or TikTok content decisions.
+              </p>
+              <p>
+                Terms may be updated from time to time — continued use means you
+                accept the updates. CreatorFlow Studio is independent and not
+                affiliated with or endorsed by TikTok. For questions, contact the
+                app owner via the project repository.
+              </p>
+            </div>
+          </div>
+
+          <div className="legal-footer">
+            <a href={import.meta.env.BASE_URL}>← Back to home</a>
+          </div>
+        </div>
       </main>
     );
   }
@@ -569,48 +612,87 @@ function App() {
   if (path.includes('/privacy')) {
     return (
       <main className="page">
-        <section className="card">
-          <div className="page-header-row">
-            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="CreatorFlow Studio" className="app-icon" />
-            <span className="brand-name">CreatorFlow Studio</span>
+        <div className="legal-wrap">
+          <div className="legal-hero">
+            <div className="legal-hero-brand">
+              <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="CreatorFlow Studio" className="app-icon" />
+              <span className="brand-name">CreatorFlow Studio</span>
+            </div>
+            <h1 className="legal-hero-title">Privacy Policy</h1>
+            <span className="legal-hero-date">Last updated: May 24, 2026</span>
           </div>
-          <hr className="brand-divider" />
-          <h1>Privacy Policy</h1>
-          <p className="muted">Last updated: May 4, 2026</p>
 
-          <h2>Overview</h2>
-          <p>
-            CreatorFlow Studio is a creator tool that helps the account owner connect
-            their own TikTok account and send creator-owned short-form videos to TikTok
-            for review and publishing through TikTok's official Content Posting API.
-          </p>
+          <div className="legal-grid">
+            <div className="legal-sec">
+              <h2>What CreatorFlow Studio Does</h2>
+              <p>
+                CreatorFlow Studio is a creator-owned TikTok publishing tool. Connect
+                your own TikTok account and submit creator-owned short-form videos
+                through TikTok's official Content Posting API. The app is for use by
+                the account owner — not a third-party posting service.
+              </p>
+            </div>
 
-          <h2>Information We May Access</h2>
-          <p>
-            With user authorization, the application may access basic TikTok account
-            information and permissions required to upload or publish video content.
-          </p>
+            <div className="legal-sec">
+              <h2>Information We Access</h2>
+              <p>With your authorization, the app may access:</p>
+              <ul>
+                <li>Your TikTok account identifier (open_id) to identify the connected account</li>
+                <li>Your display name and avatar to show account identity in the app</li>
+                <li>Publishing permissions from TikTok OAuth (user.info.basic, video.publish)</li>
+                <li>Video title, privacy level, disclosure, and interaction settings you provide</li>
+              </ul>
+            </div>
 
-          <h2>How Information Is Used</h2>
-          <p>
-            Information is used only to authenticate the account owner and perform
-            authorized content upload or publishing actions through TikTok's API.
-          </p>
+            <div className="legal-sec">
+              <h2>How Information Is Used</h2>
+              <p>Information is used solely to:</p>
+              <ul>
+                <li>Authenticate your connected TikTok account</li>
+                <li>Display your connected account identity in the app</li>
+                <li>Submit videos you authorize for publishing through TikTok's API</li>
+                <li>Check and display the status of your publish requests</li>
+                <li>Support audit and troubleshooting of authorized actions</li>
+              </ul>
+            </div>
 
-          <h2>Data Sharing</h2>
-          <p>
-            The application does not sell personal information. Data is not shared with
-            third parties except as required to operate the integration with TikTok's API.
-          </p>
+            <div className="legal-sec">
+              <h2>Token Handling &amp; Storage</h2>
+              <p>
+                Access and refresh tokens are handled server-side and are not stored
+                in or exposed to the browser. Client secrets are never transmitted to
+                the frontend. No credentials are exposed in publicly accessible code
+                or storage.
+              </p>
+            </div>
 
-          <h2>Data Storage</h2>
-          <p>
-            API credentials and access tokens must be stored securely and must not be
-            exposed publicly or committed to public repositories.
-          </p>
+            <div className="legal-sec">
+              <h2>Data Sharing &amp; User Control</h2>
+              <p>
+                Your data is not sold and is not shared with unrelated third parties.
+                Information is sent to TikTok only as required for the authorized API
+                integration. You can revoke access at any time through TikTok's
+                connected apps settings. To request data deletion or access, contact
+                the app owner via the project repository.
+              </p>
+            </div>
 
-          <a href={import.meta.env.BASE_URL}>Back to home</a>
-        </section>
+            <div className="legal-sec">
+              <h2>Security &amp; TikTok Affiliation</h2>
+              <p>
+                Reasonable technical safeguards protect the app and its integrations.
+                No credentials or tokens are exposed publicly. No system can guarantee
+                perfect security — use the app over a secure connection. CreatorFlow
+                Studio is an independent creator tool, not affiliated with, endorsed
+                by, or sponsored by TikTok or its parent company.
+              </p>
+            </div>
+          </div>
+
+          <div className="legal-footer">
+            <a href={import.meta.env.BASE_URL}>← Back to home</a>
+          </div>
+        </div>
       </main>
     );
   }
@@ -625,6 +707,23 @@ function App() {
             <span className="brand-sub">TikTok Content Publishing</span>
           </div>
         </div>
+        <div className="app-header-account">
+          {tokenResult?.ok && (accountDisplayName || tokenResult?.openId) ? (
+            <div className="ui-account-chip">
+              {creatorInfo?.avatarUrl && (
+                <img src={creatorInfo.avatarUrl} alt={accountDisplayName || 'Account'} className="ui-account-avatar" />
+              )}
+              <span className="ui-account-name">
+                {accountDisplayName
+                  ? accountDisplayName.toUpperCase()
+                  : `${tokenResult.openId!.slice(0, 6)}…${tokenResult.openId!.slice(-4)}`}
+              </span>
+            </div>
+          ) : (
+            <span className="ui-chip-idle">No TikTok account connected</span>
+          )}
+        </div>
+
         <div className="app-header-meta">
           <span className={`conn-status ${tokenResult?.ok ? 'conn-ok' : 'conn-idle'}`}>
             {tokenResult?.ok ? '● Connected' : '○ Not connected'}
