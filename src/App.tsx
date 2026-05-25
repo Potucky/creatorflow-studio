@@ -13,6 +13,7 @@ const STATUS_CHECK_URL =
 const TEST_VIDEO_URL =
   'https://potucky.github.io/creatorflow-studio/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
+const MAX_TIKTOK_TITLE_LENGTH = 2200;
 const GOOGLE_SHEET_WEBHOOK_URL =
   'https://script.google.com/macros/s/AKfycbztz1c-8Hy4pk6mQ8CYBWYXCoTPmmcJXnJ77GVk4w8mVs0-Kt2PA_uQ0sN-msEyx73I8w/exec';
 const CREATOR_INFO_URL =
@@ -605,25 +606,10 @@ function App() {
   const availablePrivacyOptions = (
     creatorInfo?.privacyLevelOptions && creatorInfo.privacyLevelOptions.length > 0
       ? creatorInfo.privacyLevelOptions
-      : (['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'] as PrivacyLevel[])
+      : []
   ).map((value) => ({ value, label: privacyOptionLabels[value] }));
 
-  const auditItems = [
-    { label: 'Official website and brand visible', pass: true },
-    { label: 'Terms and Privacy links in header', pass: true },
-    { label: 'TikTok OAuth connected', pass: tokenResult?.ok === true },
-    { label: 'Connected account identity visible', pass: !!(tokenResult?.openId) },
-    { label: 'Creator info loaded from TikTok', pass: creatorInfoStatus === 'done' && creatorInfo !== null },
-    { label: 'Privacy manually selected from TikTok options', pass: privacyLevel !== '' },
-    { label: 'Interaction controls visible', pass: true },
-    { label: auditDeclarationLabel, pass: musicUsageConfirmed },
-    { label: 'Commercial disclosure handled', pass: !disclosureEnabled || (disclosureOptionSelected && !privacyBrandedConflict) },
-    { label: 'Video preview visible', pass: true },
-    { label: 'User consent confirmed', pass: consent },
-    { label: 'Tokens stored server-side only', pass: true },
-  ];
-
-  // Priority: creator_username → creator_nickname → tokenResult display fields → nickname → masked open_id
+  // Priority: creator_username → creator_nickname → tokenResult display fields → nickname
   const accountDisplayName =
     creatorInfo?.creator_username ||
     creatorInfo?.creator_nickname ||
@@ -632,6 +618,52 @@ function App() {
     tokenResult?.username ||
     creatorInfo?.nickname ||
     null;
+  const tokenExchangeSucceeded = tokenResult?.ok === true;
+  const hasSafeConnectedIdentity = !!(accountDisplayName || tokenResult?.openIdReceived);
+  const hasConnectedTikTok = tokenExchangeSucceeded && hasSafeConnectedIdentity;
+  const grantedScopes = (tokenResult?.scope ?? '').split(/[\s,]+/).filter(Boolean);
+  const hasVideoPublishScope = grantedScopes.includes('video.publish');
+  const creatorInfoReady = creatorInfoStatus === 'done' && creatorInfo !== null;
+  const privacySelected = privacyLevel !== '';
+  const privacyAllowed = privacySelected && availablePrivacyOptions.some(({ value }) => value === privacyLevel);
+  const selectedVideoReady =
+    selectedFile !== null &&
+    selectedObjectUrl !== null &&
+    selectedFile.type.startsWith('video/') &&
+    selectedFile.size > 0;
+  const trimmedTitle = title.trim();
+  const titleTooLong = title.length > MAX_TIKTOK_TITLE_LENGTH;
+  const titleReady = trimmedTitle.length > 0 && !titleTooLong;
+  const disclosureReady = !disclosureEnabled || disclosureOptionSelected;
+  const agreementsReady = musicUsageConfirmed && consent;
+  const canPublish =
+    hasConnectedTikTok &&
+    hasVideoPublishScope &&
+    creatorInfoReady &&
+    privacySelected &&
+    privacyAllowed &&
+    selectedVideoReady &&
+    titleReady &&
+    disclosureReady &&
+    !privacyBrandedConflict &&
+    agreementsReady &&
+    publishState !== 'loading';
+
+  const auditItems = [
+    { label: 'Official website and brand visible', pass: true },
+    { label: 'Terms and Privacy links in header', pass: true },
+    { label: 'TikTok OAuth connected', pass: tokenExchangeSucceeded },
+    { label: 'TikTok video.publish scope granted', pass: hasVideoPublishScope },
+    { label: 'Connected account identity visible', pass: hasSafeConnectedIdentity },
+    { label: 'Creator info loaded from TikTok', pass: creatorInfoReady },
+    { label: 'Privacy manually selected from TikTok options', pass: privacySelected && privacyAllowed },
+    { label: 'Interaction controls visible', pass: true },
+    { label: auditDeclarationLabel, pass: musicUsageConfirmed },
+    { label: 'Commercial disclosure handled', pass: disclosureReady && !privacyBrandedConflict },
+    { label: 'Video preview visible', pass: selectedVideoReady },
+    { label: 'User consent confirmed', pass: consent },
+    { label: 'Tokens stored server-side only', pass: true },
+  ];
 
   if (path.includes('/terms')) {
     return (
@@ -1173,13 +1205,23 @@ function App() {
                 Choose video
               </button>
             </div>
+            {!selectedVideoReady && (
+              <p className="tt-helper-warn">Choose a video before publishing.</p>
+            )}
           </div>
 
           <div className="tt-section-heading">Creator &amp; Privacy</div>
 
+          {hasConnectedTikTok && !hasVideoPublishScope && (
+            <p className="tt-helper-warn">TikTok video.publish scope is required before Direct Post publishing.</p>
+          )}
+
+          {tokenResult?.ok && !creatorInfoReady && creatorInfoStatus !== 'loading' && (
+            <p className="tt-helper-warn">Creator info must be loaded before publishing.</p>
+          )}
+
           {tokenResult?.ok && !creatorInfo && creatorInfoStatus !== 'loading' && creatorInfoStatus !== 'error' && (
             <div>
-              <p className="tt-helper-warn">Creator info required to confirm available privacy options.</p>
               <button
                 type="button"
                 className="tt-btn-secondary"
@@ -1234,6 +1276,12 @@ function App() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            {trimmedTitle.length === 0 && (
+              <p className="tt-helper-warn">Add a title before publishing.</p>
+            )}
+            {titleTooLong && (
+              <p className="tt-helper-warn">Title is too long for TikTok publishing.</p>
+            )}
           </div>
 
           <div className="tt-field-row">
@@ -1374,14 +1422,7 @@ function App() {
               type="button"
               className="tt-btn"
               onClick={handlePublish}
-              disabled={
-                !musicUsageConfirmed ||
-                !consent ||
-                publishState === 'loading' ||
-                !privacyLevel ||
-                privacyBrandedConflict ||
-                (disclosureEnabled && !disclosureOptionSelected)
-              }
+              disabled={!canPublish}
             >
               {publishState === 'loading' ? 'Publishing…' : 'Publish to TikTok'}
             </button>
