@@ -19,6 +19,10 @@ const CREATOR_INFO_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-creator-info';
 const CREATE_UPLOAD_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-create-video-upload';
+const MUSIC_USAGE_CONFIRMATION_URL =
+  'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
+const BRANDED_CONTENT_POLICY_URL =
+  'https://www.tiktok.com/legal/page/global/bc-policy/en';
 
 interface CallbackResult {
   code: string | null;
@@ -1372,9 +1376,42 @@ function App() {
               checked={musicUsageConfirmed}
               onChange={(e) => setMusicUsageConfirmed(e.target.checked)}
             />
-            {brandContent
-              ? "I agree to TikTok's Branded Content Policy and Music Usage Confirmation."
-              : "I agree to TikTok's Music Usage Confirmation."}
+            <span>
+              {brandContent ? (
+                <>
+                  By posting, you agree to TikTok's{' '}
+                  <a
+                    className="tt-policy-link"
+                    href={BRANDED_CONTENT_POLICY_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Branded Content Policy
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    className="tt-policy-link"
+                    href={MUSIC_USAGE_CONFIRMATION_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Music Usage Confirmation
+                  </a>
+                </>
+              ) : (
+                <>
+                  By posting, you agree to TikTok's{' '}
+                  <a
+                    className="tt-policy-link"
+                    href={MUSIC_USAGE_CONFIRMATION_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Music Usage Confirmation
+                  </a>
+                </>
+              )}
+            </span>
           </label>
 
           <label className="tt-consent">
@@ -1385,6 +1422,10 @@ function App() {
             />
             I confirm I want to publish to my connected TikTok account.
           </label>
+
+          <p className="tt-declaration tt-processing-notice">
+            After publishing, your content may take a few minutes to process and become visible on your TikTok profile.
+          </p>
 
           <div>
             <button
