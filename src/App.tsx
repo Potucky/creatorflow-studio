@@ -398,6 +398,7 @@ function App() {
   }
 
   async function handlePublish() {
+    if (!canPublish) return;
     setPublishState('loading');
     setPublishResult(null);
     setSheetSyncStatus('idle');
@@ -611,6 +612,7 @@ function App() {
   const disclosureReady = !disclosureEnabled || disclosureOptionSelected;
   const agreementsReady = musicUsageConfirmed && consent;
   const canPublish =
+    !missingConfig &&
     hasConnectedTikTok &&
     hasVideoPublishScope &&
     creatorInfoReady &&
@@ -1146,43 +1148,6 @@ function App() {
         <section className="card tt-section tt-publish-panel">
           <h2>Publish Video</h2>
 
-          <div className="tt-video-preview">
-            <video
-              src={selectedObjectUrl ?? TEST_VIDEO_URL}
-              controls
-              muted
-              className="tt-preview-video"
-            />
-            <div className="tt-video-choose-row">
-              <p className="tt-preview-label">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                aria-label="Choose video file"
-                className="tt-file-input-hidden"
-                disabled={publishState === 'loading'}
-                onChange={handleFileChange}
-              />
-              <button
-                type="button"
-                className="tt-btn-choose"
-                disabled={publishState === 'loading'}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                    fileInputRef.current.click();
-                  }
-                }}
-              >
-                Choose video
-              </button>
-            </div>
-            {!selectedVideoReady && (
-              <p className="tt-helper-warn">Choose a video before publishing.</p>
-            )}
-          </div>
-
           <div className="tt-section-heading">Creator &amp; Privacy</div>
 
           {hasConnectedTikTok && !hasVideoPublishScope && (
@@ -1239,6 +1204,43 @@ function App() {
               </div>
             </div>
           )}
+
+          <div className="tt-video-preview">
+            <video
+              src={selectedObjectUrl ?? TEST_VIDEO_URL}
+              controls
+              muted
+              className="tt-preview-video"
+            />
+            <div className="tt-video-choose-row">
+              <p className="tt-preview-label">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                aria-label="Choose video file"
+                className="tt-file-input-hidden"
+                disabled={publishState === 'loading'}
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                className="tt-btn-choose"
+                disabled={publishState === 'loading'}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                Choose video
+              </button>
+            </div>
+            {!selectedVideoReady && (
+              <p className="tt-helper-warn">Choose a video before publishing.</p>
+            )}
+          </div>
 
           <div className="tt-field-row">
             <label className="tt-label" htmlFor="publish-title">Title</label>

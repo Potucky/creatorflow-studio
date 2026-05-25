@@ -24,6 +24,16 @@ Confirmation, and separately confirm that they want to publish to the connected
 TikTok account. The publish button remains disabled until those requirements are
 met.
 
+The Music Usage Confirmation declaration appears before the Publish button. The
+Music Usage Confirmation text is a clickable link to TikTok's Music Usage
+Confirmation policy page. When Branded Content is selected, both the Branded
+Content Policy link and the Music Usage Confirmation link are displayed and
+clickable before the user can publish.
+
+A processing notice appears before the Publish button: "After publishing, your
+content may take a few minutes to process and become visible on your TikTok
+profile."
+
 Publishing is initialized through `/v2/post/publish/video/init/`, and status is
 checked through `/v2/post/publish/status/fetch/`. The app displays processing
 states honestly and does not show final success unless TikTok reports
