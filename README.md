@@ -19,14 +19,17 @@ The app does **not** perform scraping, follower automation, mass liking, mass co
 
 ## TikTok integration
 
-- **API**: TikTok Content Posting API (inbox upload)
-- **OAuth scopes**: `user.info.basic`, `video.upload`
-- **Direct Post**: disabled — videos are sent to the creator's TikTok inbox for review, not auto-published
-- **Tokens**: stored server-side in Supabase only; never returned to the browser
+- **API**: TikTok Content Posting API Direct Post
+- **OAuth scopes**: `user.info.basic`, `video.publish`
+- **Creator info**: loaded through `/v2/post/publish/creator_info/query/` before publishing so the app can show the connected identity, allowed privacy options, interaction controls, and max video duration returned by TikTok
+- **Direct Post endpoint**: `/v2/post/publish/video/init/`
+- **Status endpoint**: `/v2/post/publish/status/fetch/`; the UI treats `PUBLISH_COMPLETE` as final success and keeps processing states visibly pending
+- **User controls**: users manually select privacy, choose a video, review the preview/title/interactions, complete commercial disclosure, confirm Music Usage, and give final publish consent before the publish button is enabled
+- **Tokens**: access and refresh tokens are stored server-side in Supabase only; they are never returned to the browser
 
-## Sandbox status
+## Review status
 
-Current blocker: `FILE_UPLOAD` mode returns HTTP 201 and a `publish_id`, but publish status remains `PROCESSING_UPLOAD`. Under investigation.
+CreatorFlow Studio is prepared for TikTok Content Posting API Direct Post review. The remaining known architecture risk is that the browser still receives the TikTok `open_id` and Supabase functions use that caller-supplied identifier to load the stored connection. Tokens remain server-side, but a future hardening pass should replace this with an opaque session-bound connection handle.
 
 ## Production review
 

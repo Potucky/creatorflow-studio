@@ -14,8 +14,7 @@ const TEST_VIDEO_URL =
   'https://potucky.github.io/creatorflow-studio/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
 const MAX_TIKTOK_TITLE_LENGTH = 2200;
-const GOOGLE_SHEET_WEBHOOK_URL =
-  'https://script.google.com/macros/s/AKfycbztz1c-8Hy4pk6mQ8CYBWYXCoTPmmcJXnJ77GVk4w8mVs0-Kt2PA_uQ0sN-msEyx73I8w/exec';
+const REVIEW_AUDIT_LOGGING_ENABLED = false;
 const CREATOR_INFO_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-creator-info';
 const CREATE_UPLOAD_URL =
@@ -328,12 +327,12 @@ function App() {
   }, [callbackResult]);
 
   useEffect(() => {
-    if (exchangeStatus !== 'done' || !tokenResult?.ok || !tokenResult?.openId) return;
-    setCreatorInfoStatus('loading');
+    const openId = tokenResult?.openId;
+    if (exchangeStatus !== 'done' || !tokenResult?.ok || !openId) return;
     fetch(CREATOR_INFO_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ open_id: tokenResult.openId }),
+      body: JSON.stringify({ open_id: openId }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('not ok');
@@ -344,7 +343,7 @@ function App() {
         setCreatorInfoStatus('done');
       })
       .catch(() => setCreatorInfoStatus('error'));
-  }, [exchangeStatus, tokenResult]);
+  }, [exchangeStatus, tokenResult?.ok, tokenResult?.openId]);
 
   const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY as string | undefined;
   const redirectUri = import.meta.env.VITE_TIKTOK_REDIRECT_URI as string | undefined;
@@ -386,48 +385,12 @@ function App() {
       .catch(() => setCreatorInfoStatus('error'));
   }
 
-  async function logToGoogleSheet(result: PublishResult, videoTitle: string, notes = '', videoSource = TEST_VIDEO_URL): Promise<boolean> {
-    const now = new Date().toISOString();
-    const payload = {
-      ok: result.ok ?? null,
-      initOk: result.initOk ?? null,
-      uploadOk: result.uploadOk ?? null,
-      binaryUploadOk: result.binaryUploadOk ?? null,
-      binaryUploadStatus: result.binaryUploadStatus ?? null,
-      checkOk: result.checkOk ?? null,
-      statusCheckOk: result.statusCheckOk ?? null,
-      publishStatus: result.publishStatus ?? null,
-      finalPublishComplete: result.finalPublishComplete ?? false,
-      pending: result.pending ?? null,
-      failed: result.failed ?? null,
-      status: result.status ?? null,
-      videoTitle,
-      publishId: result.publishId ?? null,
-      failReason: result.failReason ?? null,
-      uploadedBytes: result.uploadedBytes ?? null,
-      environment: 'sandbox',
-      videoUrl: videoSource,
-      errorMessage: result.error ?? null,
-      connectionOpenIdMasked: result.connectionOpenIdMasked ?? null,
-      connectionScope: result.connectionScope ?? null,
-      connectionLastTokenExchangeAt: result.connectionLastTokenExchangeAt ?? null,
-      connectionFound: result.connectionFound ?? null,
-      tokenAvailable: result.tokenAvailable ?? null,
-      openIdPresent: result.openIdPresent ?? null,
-      createdAt: now,
-      updatedAt: now,
-      notes,
-    };
-    try {
-      const res = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+  async function logReviewAudit(result: PublishResult, videoTitle: string, notes = '', videoSource = TEST_VIDEO_URL): Promise<boolean> {
+    void result;
+    void videoTitle;
+    void notes;
+    void videoSource;
+    return false;
   }
 
   async function handlePublish() {
@@ -436,7 +399,7 @@ function App() {
     setSheetSyncStatus('idle');
 
     let result: PublishResult;
-    // Safe source label for Google Sheet — never a signed URL or token
+    // Safe source label for optional local audit logging - never a signed URL or token.
     let videoSource = TEST_VIDEO_URL;
 
     const publishBody: Record<string, unknown> = {
@@ -497,7 +460,7 @@ function App() {
             publishBody.storage_path = uploadInfo.path;
             publishBody.video_size = selectedFile.size;
             publishBody.source_filename = uploadInfo.sourceFilename;
-            videoSource = uploadInfo.sourceFilename; // safe for Google Sheet
+            videoSource = uploadInfo.sourceFilename;
           }
         }
       } catch {
@@ -531,11 +494,13 @@ function App() {
     setStatusRefreshResult(null);
     setStatusRefreshSheetSync('idle');
 
-    // Fire-and-forget: must not block or affect the upload result
-    setSheetSyncStatus('loading');
-    logToGoogleSheet(result, title, '', videoSource)
-      .then((synced) => setSheetSyncStatus(synced ? 'saved' : 'failed'))
-      .catch(() => setSheetSyncStatus('failed'));
+    if (REVIEW_AUDIT_LOGGING_ENABLED) {
+      // Fire-and-forget: must not block or affect the upload result.
+      setSheetSyncStatus('loading');
+      logReviewAudit(result, title, '', videoSource)
+        .then((synced) => setSheetSyncStatus(synced ? 'saved' : 'failed'))
+        .catch(() => setSheetSyncStatus('failed'));
+    }
   }
 
   async function handleRefreshStatus() {
@@ -564,8 +529,6 @@ function App() {
     setStatusRefreshResult(result);
     setStatusRefreshState('done');
 
-    // Fire-and-forget: log refresh result to Google Sheet
-    setStatusRefreshSheetSync('loading');
     const asPublishResult: PublishResult = {
       ok: result.ok,
       checkOk: result.checkOk,
@@ -586,17 +549,18 @@ function App() {
       tokenAvailable: result.tokenAvailable,
       openIdPresent: result.openIdPresent,
     };
-    logToGoogleSheet(asPublishResult, title, 'status_refresh')
-      .then((synced) => setStatusRefreshSheetSync(synced ? 'saved' : 'failed'))
-      .catch(() => setStatusRefreshSheetSync('failed'));
+    if (REVIEW_AUDIT_LOGGING_ENABLED) {
+      // Fire-and-forget optional audit logging, disabled in the review build.
+      setStatusRefreshSheetSync('loading');
+      logReviewAudit(asPublishResult, title, 'status_refresh')
+        .then((synced) => setStatusRefreshSheetSync(synced ? 'saved' : 'failed'))
+        .catch(() => setStatusRefreshSheetSync('failed'));
+    }
   }
 
   const isSelfOnly = privacyLevel === 'SELF_ONLY';
   const privacyBrandedConflict = brandContent && isSelfOnly;
   const disclosureOptionSelected = brandOrganic || brandContent;
-  const auditDeclarationLabel = brandContent
-    ? 'Branded Content Policy and Music Usage Confirmation agreed'
-    : 'Music Usage Confirmation agreed';
   const privacyOptionLabels: Record<PrivacyLevel, string> = {
     PUBLIC_TO_EVERYONE: 'Public',
     MUTUAL_FOLLOW_FRIENDS: 'Friends',
@@ -619,11 +583,17 @@ function App() {
     creatorInfo?.nickname ||
     null;
   const tokenExchangeSucceeded = tokenResult?.ok === true;
-  const hasSafeConnectedIdentity = !!(accountDisplayName || tokenResult?.openIdReceived);
+  const hasSafeConnectedIdentity = !!(accountDisplayName || tokenResult?.openId);
   const hasConnectedTikTok = tokenExchangeSucceeded && hasSafeConnectedIdentity;
   const grantedScopes = (tokenResult?.scope ?? '').split(/[\s,]+/).filter(Boolean);
   const hasVideoPublishScope = grantedScopes.includes('video.publish');
   const creatorInfoReady = creatorInfoStatus === 'done' && creatorInfo !== null;
+  const creatorInfoAutoLoading =
+    exchangeStatus === 'done' &&
+    tokenResult?.ok === true &&
+    !!tokenResult.openId &&
+    creatorInfoStatus === 'idle';
+  const creatorInfoLoading = creatorInfoStatus === 'loading' || creatorInfoAutoLoading;
   const privacySelected = privacyLevel !== '';
   const privacyAllowed = privacySelected && availablePrivacyOptions.some(({ value }) => value === privacyLevel);
   const selectedVideoReady =
@@ -653,16 +623,15 @@ function App() {
     { label: 'Official website and brand visible', pass: true },
     { label: 'Terms and Privacy links in header', pass: true },
     { label: 'TikTok OAuth connected', pass: tokenExchangeSucceeded },
-    { label: 'TikTok video.publish scope granted', pass: hasVideoPublishScope },
     { label: 'Connected account identity visible', pass: hasSafeConnectedIdentity },
+    { label: 'TikTok video.publish scope granted', pass: hasVideoPublishScope },
     { label: 'Creator info loaded from TikTok', pass: creatorInfoReady },
     { label: 'Privacy manually selected from TikTok options', pass: privacySelected && privacyAllowed },
-    { label: 'Interaction controls visible', pass: true },
-    { label: auditDeclarationLabel, pass: musicUsageConfirmed },
+    { label: 'Interaction controls loaded from creator info', pass: creatorInfoReady },
+    { label: 'Music Usage Confirmation checked', pass: musicUsageConfirmed },
     { label: 'Commercial disclosure handled', pass: disclosureReady && !privacyBrandedConflict },
     { label: 'Video preview visible', pass: selectedVideoReady },
     { label: 'User consent confirmed', pass: consent },
-    { label: 'Tokens stored server-side only', pass: true },
   ];
 
   if (path.includes('/terms')) {
@@ -1216,11 +1185,11 @@ function App() {
             <p className="tt-helper-warn">TikTok video.publish scope is required before Direct Post publishing.</p>
           )}
 
-          {tokenResult?.ok && !creatorInfoReady && creatorInfoStatus !== 'loading' && (
+          {tokenResult?.ok && !creatorInfoReady && !creatorInfoLoading && (
             <p className="tt-helper-warn">Creator info must be loaded before publishing.</p>
           )}
 
-          {tokenResult?.ok && !creatorInfo && creatorInfoStatus !== 'loading' && creatorInfoStatus !== 'error' && (
+          {tokenResult?.ok && !creatorInfo && !creatorInfoLoading && creatorInfoStatus !== 'error' && (
             <div>
               <button
                 type="button"
@@ -1232,7 +1201,7 @@ function App() {
             </div>
           )}
 
-          {creatorInfoStatus === 'loading' && (
+          {creatorInfoLoading && (
             <p className="tt-exchange-loading">Loading creator info…</p>
           )}
 
@@ -1300,7 +1269,7 @@ function App() {
               ))}
             </select>
             {brandContent && (
-              <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
+              <p className="tt-helper-warn">Branded content is unavailable while Privacy is set to Private.</p>
             )}
           </div>
 
@@ -1381,7 +1350,7 @@ function App() {
                 Branded content
               </label>
               {isSelfOnly && (
-                <p className="tt-helper-warn">Branded content visibility cannot be set to private.</p>
+                <p className="tt-helper-warn">Branded content is unavailable while Privacy is set to Private.</p>
               )}
               {disclosureOptionSelected ? (
                 <p className="tt-declaration-label">
@@ -1555,9 +1524,9 @@ function App() {
 
               {sheetSyncStatus !== 'idle' && (
                 <p className={`tt-sheet-sync${sheetSyncStatus === 'saved' ? ' tt-sheet-sync--ok' : sheetSyncStatus === 'failed' ? ' tt-sheet-sync--fail' : ''}`}>
-                  {sheetSyncStatus === 'loading' && 'Google Sheet sync: syncing…'}
-                  {sheetSyncStatus === 'saved' && 'Google Sheet sync: saved'}
-                  {sheetSyncStatus === 'failed' && 'Google Sheet sync: skipped/failed'}
+                  {sheetSyncStatus === 'loading' && 'Review audit log: syncing…'}
+                  {sheetSyncStatus === 'saved' && 'Review audit log: saved'}
+                  {sheetSyncStatus === 'failed' && 'Review audit log: skipped/failed'}
                 </p>
               )}
 
@@ -1634,9 +1603,9 @@ function App() {
 
                   {statusRefreshSheetSync !== 'idle' && (
                     <p className={`tt-sheet-sync${statusRefreshSheetSync === 'saved' ? ' tt-sheet-sync--ok' : statusRefreshSheetSync === 'failed' ? ' tt-sheet-sync--fail' : ''}`}>
-                      {statusRefreshSheetSync === 'loading' && 'Google Sheet sync: syncing…'}
-                      {statusRefreshSheetSync === 'saved' && 'Google Sheet sync: saved'}
-                      {statusRefreshSheetSync === 'failed' && 'Google Sheet sync: skipped/failed'}
+                      {statusRefreshSheetSync === 'loading' && 'Review audit log: syncing…'}
+                      {statusRefreshSheetSync === 'saved' && 'Review audit log: saved'}
+                      {statusRefreshSheetSync === 'failed' && 'Review audit log: skipped/failed'}
                     </p>
                   )}
                 </>

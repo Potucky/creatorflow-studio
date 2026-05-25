@@ -31,6 +31,18 @@ Privacy:
 Website:
 <https://potucky.github.io/creatorflow-studio/>
 
+## Current TikTok review flow
+
+- Login Kit OAuth
+- `user.info.basic`
+- `video.publish`
+- Creator info query before publish
+- Direct Post through `/v2/post/publish/video/init/`
+- Status checks through `/v2/post/publish/status/fetch/`
+- Explicit privacy, interaction, commercial disclosure, Music Usage, and final publish consent controls
+
 ## Next step
 
-Switch TikTok Developer app to Sandbox and check whether Content Posting API and required scopes are available.
+Perform final manual QA on the production GitHub Pages URL, then resubmit for
+TikTok Content Posting API Direct Post review if the known `open_id` session
+hardening risk is accepted for this review attempt.

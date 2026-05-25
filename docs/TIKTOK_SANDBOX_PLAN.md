@@ -1,6 +1,13 @@
 # TikTok Sandbox Technical Plan
 
-Goal:
+Legacy note:
+This document records the earlier sandbox/inbox-upload investigation. It is not
+the current production review plan. The current CreatorFlow Studio review flow
+uses Login Kit, `user.info.basic`, `video.publish`, creator info query, Direct
+Post, explicit privacy/disclosure/music/user consent controls, and status fetch
+semantics.
+
+Original goal:
 Check whether TikTok API access is technically possible before investing more time.
 
 ## Step 1 — Switch to Sandbox
@@ -24,13 +31,13 @@ Avoid:
 
 ## Step 3 — Add Scopes
 
-Current approved scopes:
+Historical sandbox scopes at the time:
 
 user.info.basic
 video.upload
 
-Note: video.publish was not added. Videos are sent to the creator's TikTok
-inbox for review, not directly published. Direct Post is disabled.
+Note: this was true for the earlier sandbox test only. It is not the current
+Direct Post review flow.
 
 ## Step 4 — Configure Web / Redirect URI
 
