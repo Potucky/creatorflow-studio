@@ -941,11 +941,11 @@ function App() {
 
           <button
             type="button"
-            className="tt-btn"
+            className={`tt-btn${hasConnectedTikTok ? ' tt-btn--connected' : ''}`}
             onClick={handleConnect}
             disabled={missingConfig}
           >
-            Connect TikTok
+            {hasConnectedTikTok ? 'Connected' : 'Connect TikTok'}
           </button>
 
           {missingConfig && (
