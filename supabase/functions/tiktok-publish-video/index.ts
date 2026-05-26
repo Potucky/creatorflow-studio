@@ -1,7 +1,7 @@
 // tiktok-publish-video — Supabase Edge Function
 //
-// Initiates a TikTok Content Posting API inbox upload.
-// Supports PULL_FROM_URL (default) and FILE_UPLOAD modes.
+// Initiates a TikTok Content Posting API Direct Post video upload.
+// Supports FILE_UPLOAD (default) and a restricted PULL_FROM_URL test mode.
 // FILE_UPLOAD supports optional server-side binary upload (upload_binary: true).
 // Tokens and upload_url are NEVER returned to the browser or written to logs.
 //
@@ -19,8 +19,10 @@
 
 const DB_TABLE = "creatorflow_tiktok_connections";
 const ALLOWED_STORAGE_BUCKET = "tiktok-video-staging";
+const ALLOWED_PULL_FROM_URL_PREFIX = "https://app.usgoit.com/";
+const VIDEO_FILE_PATH_RE = /\.(mp4|mov|webm)$/i;
 
-type UploadMode = "PULL_FROM_URL" | "FILE_UPLOAD";
+type TransferMode = "PULL_FROM_URL" | "FILE_UPLOAD";
 
 interface ConnectionRecord {
   open_id?: string;
@@ -75,6 +77,74 @@ function safeFailReason(value?: string | null): string | null {
   return normalized ? normalized.slice(0, 240) : null;
 }
 
+function validateVerifiedVideoUrl(videoUrl?: string): {
+  ok: boolean;
+  sourceDomainAllowed: boolean;
+  normalizedUrl?: string;
+  error?: string;
+} {
+  const trimmedUrl = typeof videoUrl === "string" ? videoUrl.trim() : "";
+  if (!trimmedUrl) {
+    return {
+      ok: false,
+      sourceDomainAllowed: false,
+      error: "Missing required field: videoUrl",
+    };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmedUrl);
+  } catch {
+    return {
+      ok: false,
+      sourceDomainAllowed: false,
+      error: "videoUrl must be a valid HTTPS URL",
+    };
+  }
+
+  if (parsed.protocol !== "https:") {
+    return {
+      ok: false,
+      sourceDomainAllowed: false,
+      error: "videoUrl must use HTTPS",
+    };
+  }
+
+  const sourceDomainAllowed = trimmedUrl.startsWith(ALLOWED_PULL_FROM_URL_PREFIX);
+  if (!sourceDomainAllowed) {
+    return {
+      ok: false,
+      sourceDomainAllowed,
+      error: "videoUrl must use the verified app.usgoit.com domain",
+    };
+  }
+
+  if (!VIDEO_FILE_PATH_RE.test(parsed.pathname)) {
+    return {
+      ok: false,
+      sourceDomainAllowed,
+      error: "videoUrl must end in .mp4, .mov, or .webm",
+    };
+  }
+
+  return {
+    ok: true,
+    sourceDomainAllowed,
+    normalizedUrl: trimmedUrl,
+  };
+}
+
+function logSafePublishEvent(args: {
+  transferMode: TransferMode;
+  endpointMode: string;
+  sourceDomainAllowed: boolean;
+  tikTokStatus: number | null;
+  publishIdPresent: boolean;
+}): void {
+  console.log(`[tiktok-publish-video] ${JSON.stringify(args)}`);
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── ALLOWED_ORIGIN is required — no wildcard fallback ──────────────────────
   const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN");
@@ -121,7 +191,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────────
-  let uploadMode: UploadMode;
+  let transferMode: TransferMode;
   let uploadBinary: boolean;
   let checkStatus: boolean;
   let videoUrl: string | undefined;
@@ -139,13 +209,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let storageBucket: string | undefined;
   let storagePath: string | undefined;
   let sourceFilename: string | undefined;
+  let sourceDomainAllowed = false;
 
   try {
     const body = (await req.json()) as {
       open_id?: string;
+      transferMode?: string;
       upload_mode?: string;
       upload_binary?: boolean;
       check_status?: boolean;
+      videoUrl?: string;
       video_url?: string;
       title?: string;
       privacy_level?: string;
@@ -163,17 +236,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
     requestOpenId = body.open_id;
 
-    const rawMode = body.upload_mode ?? "PULL_FROM_URL";
+    const rawMode = body.transferMode ?? body.upload_mode ?? "FILE_UPLOAD";
     if (rawMode !== "PULL_FROM_URL" && rawMode !== "FILE_UPLOAD") {
       return json(
-        { ok: false, error: "upload_mode must be PULL_FROM_URL or FILE_UPLOAD" },
+        { ok: false, error: "transferMode must be PULL_FROM_URL or FILE_UPLOAD" },
         400,
       );
     }
-    uploadMode = rawMode;
-    uploadBinary = body.upload_binary === true;
+    transferMode = rawMode;
+    uploadBinary = transferMode === "FILE_UPLOAD" && body.upload_binary === true;
     checkStatus = body.check_status === true;
-    videoUrl = body.video_url;
+    videoUrl = body.videoUrl ?? body.video_url;
     title = body.title;
     privacyLevel = body.privacy_level;
     videoSize = body.video_size;
@@ -207,13 +280,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Missing required field: title" }, 400);
   }
 
-  if (uploadMode === "PULL_FROM_URL") {
-    if (!videoUrl) {
-      return json(
-        { ok: false, error: "Missing required field: video_url for PULL_FROM_URL mode" },
-        400,
-      );
+  if (transferMode === "PULL_FROM_URL") {
+    const validation = validateVerifiedVideoUrl(videoUrl);
+    sourceDomainAllowed = validation.sourceDomainAllowed;
+    if (!validation.ok) {
+      logSafePublishEvent({
+        transferMode,
+        endpointMode: tiktokEnv,
+        sourceDomainAllowed,
+        tikTokStatus: null,
+        publishIdPresent: false,
+      });
+      return json({ ok: false, transferMode, sourceDomainAllowed, error: validation.error }, 400);
     }
+    videoUrl = validation.normalizedUrl;
+    privacyLevel = "SELF_ONLY";
   } else {
     // FILE_UPLOAD
     if (uploadBinary) {
@@ -231,6 +312,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
       if (storageBucket && storageBucket !== ALLOWED_STORAGE_BUCKET) {
         return json({ ok: false, error: "Invalid storage_bucket" }, 400);
+      }
+      if (videoUrl && !hasStoragePath) {
+        const validation = validateVerifiedVideoUrl(videoUrl);
+        sourceDomainAllowed = validation.sourceDomainAllowed;
+        if (!validation.ok) {
+          logSafePublishEvent({
+            transferMode,
+            endpointMode: tiktokEnv,
+            sourceDomainAllowed,
+            tikTokStatus: null,
+            publishIdPresent: false,
+          });
+          return json({ ok: false, transferMode, sourceDomainAllowed, error: validation.error }, 400);
+        }
+        videoUrl = validation.normalizedUrl;
       }
     } else {
       // init-only: video_size must be known up front
@@ -301,7 +397,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Branches on staged storage path (new) or video_url (existing).
   // videoSize may be derived from the downloaded bytes if not supplied by caller.
   let videoBytes: ArrayBuffer | null = null;
-  if (uploadMode === "FILE_UPLOAD" && uploadBinary) {
+  if (transferMode === "FILE_UPLOAD" && uploadBinary) {
     if (storageBucket && storagePath) {
       // Strict validation of staged storage input before service-role download
       if (storageBucket !== ALLOWED_STORAGE_BUCKET) {
@@ -386,7 +482,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── Build source_info per mode ─────────────────────────────────────────────
   const sourceInfo =
-    uploadMode === "PULL_FROM_URL"
+    transferMode === "PULL_FROM_URL"
       ? { source: "PULL_FROM_URL", video_url: videoUrl }
       : {
           source: "FILE_UPLOAD",
@@ -409,15 +505,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── Shared safe diagnostic fields (tokens and upload_url intentionally absent)
   const diagnostics = {
-    uploadMode,
+    transferMode,
+    uploadMode: transferMode,
+    endpointMode: tiktokEnv,
     uploadBinary,
+    sourceDomainAllowed,
     connectionFound,
     tokenAvailable,
     openIdPresent,
     connectionOpenIdMasked: maskOpenId(connection!.open_id),
     ...(connection!.scope != null && { connectionScope: connection!.scope }),
     ...(connection!.last_token_exchange_at != null && { connectionLastTokenExchangeAt: connection!.last_token_exchange_at }),
-    ...(videoUrl !== undefined && { requestedVideoUrl: videoUrl }),
     ...(sourceFilename !== undefined && { sourceFilename }),
     requestedTitle: title,
     ...(privacyLevel !== undefined && { requestedPrivacyLevel: privacyLevel }),
@@ -448,34 +546,73 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
 
     tikTokData = (await tikTokRes.json()) as TikTokInitResponse;
+    const initPublishIdPresent = !!tikTokData.data?.publish_id;
 
     if (!tikTokRes.ok) {
+      logSafePublishEvent({
+        transferMode,
+        endpointMode: tiktokEnv,
+        sourceDomainAllowed,
+        tikTokStatus: tikTokRes.status,
+        publishIdPresent: initPublishIdPresent,
+      });
       console.error(
         `[tiktok-publish-video] TikTok init failed: HTTP ${tikTokRes.status}`,
       );
       return json(
-        {
-          ok: false,
-          ...diagnostics,
-          tikTokStatus: tikTokRes.status,
-          error: "TikTok publish init failed",
-        },
+        transferMode === "PULL_FROM_URL"
+          ? {
+              ok: false,
+              transferMode,
+              sourceDomainAllowed,
+              tikTokStatus: tikTokRes.status,
+              error: "TikTok publish init failed",
+            }
+          : {
+              ok: false,
+              ...diagnostics,
+              tikTokStatus: tikTokRes.status,
+              error: "TikTok publish init failed",
+            },
         502,
       );
     }
   } catch (err) {
+    logSafePublishEvent({
+      transferMode,
+      endpointMode: tiktokEnv,
+      sourceDomainAllowed,
+      tikTokStatus: null,
+      publishIdPresent: false,
+    });
     console.error("[tiktok-publish-video] TikTok init threw an exception");
     return json({ ok: false, error: "Failed to reach TikTok API" }, 502);
   }
 
   // ── Guard: TikTok application-level error ─────────────────────────────────
   if (tikTokData.error?.code && tikTokData.error.code !== "ok") {
+    logSafePublishEvent({
+      transferMode,
+      endpointMode: tiktokEnv,
+      sourceDomainAllowed,
+      tikTokStatus: 200,
+      publishIdPresent: !!tikTokData.data?.publish_id,
+    });
     return json(
-      {
-        ok: false,
-        ...diagnostics,
-        error: "TikTok publish init failed",
-      },
+      transferMode === "PULL_FROM_URL"
+        ? {
+            ok: false,
+            transferMode,
+            sourceDomainAllowed,
+            tikTokStatus: 200,
+            error: "TikTok publish init failed",
+          }
+        : {
+            ok: false,
+            ...diagnostics,
+            tikTokStatus: 200,
+            error: "TikTok publish init failed",
+          },
       502,
     );
   }
@@ -488,7 +625,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let binaryUploadStatus: number | undefined;
   let binaryUploadOk: boolean | undefined;
 
-  if (uploadMode === "FILE_UPLOAD" && uploadBinary && videoBytes !== null) {
+  if (transferMode === "FILE_UPLOAD" && uploadBinary && videoBytes !== null) {
     const uploadUrl = tikTokData.data?.upload_url;
     if (!uploadUrl) {
       return json(
@@ -535,6 +672,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const publishId = tikTokData.data?.publish_id;
   const initOk = true;
   const uploadOk = binaryUploadAttempted ? binaryUploadOk === true : true;
+
+  logSafePublishEvent({
+    transferMode,
+    endpointMode: tiktokEnv,
+    sourceDomainAllowed,
+    tikTokStatus: 200,
+    publishIdPresent: !!publishId,
+  });
 
   // ── Optional: check TikTok publish status ──────────────────────────────────
   // Runs after init/upload if check_status is true and a publish_id is present.
@@ -595,6 +740,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── Return safe fields only ────────────────────────────────────────────────
   // upload_url, access_token, and refresh_token are intentionally absent.
+  if (transferMode === "PULL_FROM_URL") {
+    return json({
+      ok: uploadOk,
+      transferMode,
+      sourceDomainAllowed,
+      tikTokStatus: 200,
+      initOk,
+      uploadOk,
+      ...(publishId !== undefined && { publishId }),
+      publishStatus: safePublishStatus,
+      finalPublishComplete,
+      pending,
+      failed,
+      status,
+      ...(!uploadOk && { error: "TikTok upload was not accepted" }),
+      statusCheckAttempted,
+      ...(statusCheckAttempted && { statusCheckOk }),
+      ...(statusCheckAttempted && { statusCheckHttpStatus }),
+      ...(failReason !== null && { failReason }),
+    });
+  }
+
   return json({
     ok: uploadOk,
     ...diagnostics,

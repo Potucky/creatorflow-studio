@@ -68,6 +68,13 @@ Set all of these via `supabase secrets set <KEY>=<value>` before deploying or te
 - Publish result shows PROCESSING_UPLOAD or another valid TikTok status.
 - UI does not expose upload_url.
 
+## PULL_FROM_URL verified-domain test
+
+- Confirm the public test video is reachable before running the URL pull test:
+  `curl -I https://app.usgoit.com/test-videos/tiktok-sandbox-tiny-test.mp4`
+- Expected: HTTP 200 and a video-ish `Content-Type`, such as `video/mp4`.
+- Test mode must use `SELF_ONLY` and only send URLs from `https://app.usgoit.com/`.
+
 ## Direct Post readiness
 
 - Add connected account info block.

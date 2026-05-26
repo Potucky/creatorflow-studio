@@ -10,6 +10,7 @@ const PUBLISH_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-publish-video';
 const STATUS_CHECK_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-status-check';
+const VERIFIED_PULL_FROM_URL_PREFIX = 'https://app.usgoit.com/';
 const TEST_VIDEO_URL =
   'https://app.usgoit.com/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
@@ -101,6 +102,7 @@ type ExchangeStatus = 'idle' | 'loading' | 'done' | 'skipped';
 type PublishStatus = 'idle' | 'loading' | 'done';
 type StatusRefreshState = 'idle' | 'loading' | 'done';
 type SheetSyncStatus = 'idle' | 'loading' | 'saved' | 'failed';
+type TransferMode = 'FILE_UPLOAD' | 'PULL_FROM_URL';
 type PrivacyLevel = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
 
 interface CreatorInfo {
@@ -224,6 +226,17 @@ function publishStatusLabel(status: string | null | undefined): string {
   return `${status} (processing)`;
 }
 
+function isVerifiedDomainVideoUrl(value: string): boolean {
+  const trimmedValue = value.trim();
+  if (!trimmedValue.startsWith(VERIFIED_PULL_FROM_URL_PREFIX)) return false;
+  try {
+    const parsed = new URL(trimmedValue);
+    return parsed.protocol === 'https:' && /\.(mp4|mov|webm)$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 function buildAuthUrl(clientKey: string, redirectUri: string): string {
   const state = crypto.randomUUID();
   sessionStorage.setItem(SESSION_STATE_KEY, state);
@@ -285,6 +298,8 @@ function App() {
   const [allowComments, setAllowComments] = useState(false);
   const [allowDuet, setAllowDuet] = useState(false);
   const [allowStitch, setAllowStitch] = useState(false);
+  const [transferMode, setTransferMode] = useState<TransferMode>('FILE_UPLOAD');
+  const [pullFromUrl, setPullFromUrl] = useState(TEST_VIDEO_URL);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObjectUrl, setSelectedObjectUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -358,6 +373,30 @@ function App() {
     window.location.href = buildAuthUrl(clientKey, redirectUri);
   }
 
+  function clearPublishFeedback() {
+    setPublishState('idle');
+    setPublishResult(null);
+    setSheetSyncStatus('idle');
+    setStatusRefreshState('idle');
+    setStatusRefreshResult(null);
+    setStatusRefreshSheetSync('idle');
+  }
+
+  function handleTransferModeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextMode = e.target.value as TransferMode;
+    setTransferMode(nextMode);
+    if (nextMode === 'PULL_FROM_URL') {
+      setPrivacyLevel('SELF_ONLY');
+      setBrandContent(false);
+    }
+    clearPublishFeedback();
+  }
+
+  function handlePullFromUrlChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPullFromUrl(e.target.value);
+    clearPublishFeedback();
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (selectedObjectUrl) URL.revokeObjectURL(selectedObjectUrl);
@@ -368,6 +407,7 @@ function App() {
       setSelectedFile(null);
       setSelectedObjectUrl(null);
     }
+    clearPublishFeedback();
   }
 
   function handleLoadCreatorInfo() {
@@ -406,14 +446,17 @@ function App() {
     let result: PublishResult;
     // Safe source label for optional local audit logging - never a signed URL or token.
     let videoSource = TEST_VIDEO_URL;
+    const currentTransferMode = transferMode;
+    const publishPrivacyLevel = currentTransferMode === 'PULL_FROM_URL' ? 'SELF_ONLY' : privacyLevel;
 
     const publishBody: Record<string, unknown> = {
       open_id: tokenResult?.openId ?? undefined,
-      upload_mode: 'FILE_UPLOAD',
-      upload_binary: true,
+      transferMode: currentTransferMode,
+      upload_mode: currentTransferMode,
+      upload_binary: currentTransferMode === 'FILE_UPLOAD',
       check_status: true,
       title,
-      privacy_level: privacyLevel,
+      privacy_level: publishPrivacyLevel,
     };
     if (disclosureEnabled) {
       publishBody.brand_organic_toggle = brandOrganic;
@@ -425,7 +468,12 @@ function App() {
 
     // ── Stage local file if one is selected ──────────────────────────────────
     let stagingError: string | null = null;
-    if (selectedFile) {
+    if (currentTransferMode === 'PULL_FROM_URL') {
+      const trimmedPullUrl = pullFromUrl.trim();
+      publishBody.videoUrl = trimmedPullUrl;
+      publishBody.video_url = trimmedPullUrl;
+      videoSource = trimmedPullUrl;
+    } else if (selectedFile) {
       try {
         // 1. Request a signed upload target from the edge function
         const createRes = await fetch(CREATE_UPLOAD_URL, {
@@ -563,7 +611,9 @@ function App() {
     }
   }
 
-  const isSelfOnly = privacyLevel === 'SELF_ONLY';
+  const pullFromUrlMode = transferMode === 'PULL_FROM_URL';
+  const effectivePrivacyLevel: PrivacyLevel | '' = pullFromUrlMode ? 'SELF_ONLY' : privacyLevel;
+  const isSelfOnly = effectivePrivacyLevel === 'SELF_ONLY';
   const privacyBrandedConflict = brandContent && isSelfOnly;
   const disclosureOptionSelected = brandOrganic || brandContent;
   const privacyOptionLabels: Record<PrivacyLevel, string> = {
@@ -599,13 +649,17 @@ function App() {
     !!tokenResult.openId &&
     creatorInfoStatus === 'idle';
   const creatorInfoLoading = creatorInfoStatus === 'loading' || creatorInfoAutoLoading;
-  const privacySelected = privacyLevel !== '';
-  const privacyAllowed = privacySelected && availablePrivacyOptions.some(({ value }) => value === privacyLevel);
+  const privacySelected = effectivePrivacyLevel !== '';
+  const privacyAllowed = privacySelected && availablePrivacyOptions.some(({ value }) => value === effectivePrivacyLevel);
   const selectedVideoReady =
     selectedFile !== null &&
     selectedObjectUrl !== null &&
     selectedFile.type.startsWith('video/') &&
     selectedFile.size > 0;
+  const pullFromUrlReady = isVerifiedDomainVideoUrl(pullFromUrl);
+  const videoSourceReady = pullFromUrlMode ? pullFromUrlReady : selectedVideoReady;
+  const previewSrc = pullFromUrlMode ? pullFromUrl.trim() || TEST_VIDEO_URL : selectedObjectUrl ?? TEST_VIDEO_URL;
+  const previewLabel = pullFromUrlMode ? pullFromUrl.trim() || TEST_VIDEO_URL : selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4';
   const trimmedTitle = title.trim();
   const titleTooLong = title.length > MAX_TIKTOK_TITLE_LENGTH;
   const titleReady = trimmedTitle.length > 0 && !titleTooLong;
@@ -618,7 +672,7 @@ function App() {
     creatorInfoReady &&
     privacySelected &&
     privacyAllowed &&
-    selectedVideoReady &&
+    videoSourceReady &&
     titleReady &&
     disclosureReady &&
     !privacyBrandedConflict &&
@@ -636,7 +690,7 @@ function App() {
     { label: 'Interaction controls loaded from creator info', pass: creatorInfoReady },
     { label: 'Music Usage Confirmation checked', pass: musicUsageConfirmed },
     { label: 'Commercial disclosure handled', pass: disclosureReady && !privacyBrandedConflict },
-    { label: 'Video preview visible', pass: selectedVideoReady },
+    { label: 'Video source ready', pass: videoSourceReady },
     { label: 'User consent confirmed', pass: consent },
   ];
 
@@ -1205,39 +1259,79 @@ function App() {
             </div>
           )}
 
+          <div className="tt-field-row">
+            <label className="tt-label" htmlFor="transfer-method">Transfer method</label>
+            <select
+              id="transfer-method"
+              className="tt-select"
+              value={transferMode}
+              disabled={publishState === 'loading'}
+              onChange={handleTransferModeChange}
+            >
+              <option value="FILE_UPLOAD">FILE_UPLOAD</option>
+              <option value="PULL_FROM_URL">PULL_FROM_URL verified-domain test</option>
+            </select>
+          </div>
+
+          {pullFromUrlMode && (
+            <>
+              <p className="tt-warning">
+                PULL_FROM_URL lets TikTok fetch the media from our verified domain. Test uses SELF_ONLY.
+              </p>
+              <div className="tt-field-row">
+                <label className="tt-label" htmlFor="pull-from-url">Video URL</label>
+                <input
+                  id="pull-from-url"
+                  className="tt-input"
+                  type="url"
+                  value={pullFromUrl}
+                  disabled={publishState === 'loading'}
+                  onChange={handlePullFromUrlChange}
+                />
+                {!pullFromUrlReady && (
+                  <p className="tt-helper-warn">Use an HTTPS .mp4, .mov, or .webm URL from app.usgoit.com.</p>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="tt-video-preview">
             <video
-              src={selectedObjectUrl ?? TEST_VIDEO_URL}
+              src={previewSrc}
               controls
               muted
               className="tt-preview-video"
             />
             <div className="tt-video-choose-row">
-              <p className="tt-preview-label">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</p>
+              <p className="tt-preview-label">{previewLabel}</p>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="video/*"
                 aria-label="Choose video file"
                 className="tt-file-input-hidden"
-                disabled={publishState === 'loading'}
+                disabled={publishState === 'loading' || pullFromUrlMode}
                 onChange={handleFileChange}
               />
-              <button
-                type="button"
-                className="tt-btn-choose"
-                disabled={publishState === 'loading'}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                    fileInputRef.current.click();
-                  }
-                }}
-              >
-                Choose video
-              </button>
+              {pullFromUrlMode ? (
+                <span className="tt-badge tt-warn">Verified URL test</span>
+              ) : (
+                <button
+                  type="button"
+                  className="tt-btn-choose"
+                  disabled={publishState === 'loading'}
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                      fileInputRef.current.click();
+                    }
+                  }}
+                >
+                  Choose video
+                </button>
+              )}
             </div>
-            {!selectedVideoReady && (
+            {!pullFromUrlMode && !selectedVideoReady && (
               <p className="tt-helper-warn">Choose a video before publishing.</p>
             )}
           </div>
@@ -1264,7 +1358,8 @@ function App() {
             <select
               id="privacy-level"
               className="tt-select"
-              value={privacyLevel}
+              value={effectivePrivacyLevel}
+              disabled={publishState === 'loading' || pullFromUrlMode}
               onChange={(e) => setPrivacyLevel(e.target.value as PrivacyLevel | '')}
             >
               <option value="" disabled>— Select privacy —</option>
@@ -1680,11 +1775,11 @@ function App() {
               </div>
               <div className="tt-meta-row">
                 <span className="tt-label">Upload mode</span>
-                <span className="tt-value">FILE_UPLOAD</span>
+                <span className="tt-value">{transferMode}</span>
               </div>
               <div className="tt-meta-row">
                 <span className="tt-label">Video</span>
-                <span className="tt-code">{selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4'}</span>
+                <span className="tt-code">{previewLabel}</span>
               </div>
               {publishResult?.connectionOpenIdMasked && (
                 <div className="tt-meta-row">
