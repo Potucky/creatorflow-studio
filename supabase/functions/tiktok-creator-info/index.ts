@@ -70,10 +70,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  const allowedOrigins = allowedOrigin.split(",").map((o) => o.trim()).filter(Boolean);
+  const requestOrigin = req.headers.get("origin") ?? "";
+  const effectiveOrigin = allowedOrigins.includes(requestOrigin)
+    ? requestOrigin
+    : allowedOrigins[0] ?? allowedOrigin;
+
   const corsHeaders: Record<string, string> = {
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": effectiveOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Vary": "Origin",
   };
 
   const json = (body: unknown, status = 200): Response =>
