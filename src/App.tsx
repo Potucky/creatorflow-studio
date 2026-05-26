@@ -11,7 +11,7 @@ const PUBLISH_URL =
 const STATUS_CHECK_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-status-check';
 const TEST_VIDEO_URL =
-  'https://potucky.github.io/creatorflow-studio/test-videos/tiktok-sandbox-tiny-test.mp4';
+  'https://app.usgoit.com/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
 const MAX_TIKTOK_TITLE_LENGTH = 2200;
 const REVIEW_AUDIT_LOGGING_ENABLED = false;

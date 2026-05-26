@@ -12,10 +12,10 @@ The app does **not** perform scraping, follower automation, mass liking, mass co
 
 | Page | URL |
 | --- | --- |
-| Public site | <https://potucky.github.io/creatorflow-studio/> |
-| Terms of Service | <https://potucky.github.io/creatorflow-studio/terms/> |
-| Privacy Policy | <https://potucky.github.io/creatorflow-studio/privacy/> |
-| Redirect URI | <https://potucky.github.io/creatorflow-studio/> |
+| Public site | <https://app.usgoit.com/> |
+| Terms of Service | <https://app.usgoit.com/terms/> |
+| Privacy Policy | <https://app.usgoit.com/privacy/> |
+| Redirect URI | <https://app.usgoit.com/> |
 
 ## TikTok integration
 
@@ -47,7 +47,7 @@ Create a `.env.local` file in the project root (never commit real values):
 
 ```env
 VITE_TIKTOK_CLIENT_KEY=your_client_key_here
-VITE_TIKTOK_REDIRECT_URI=https://potucky.github.io/creatorflow-studio/
+VITE_TIKTOK_REDIRECT_URI=https://app.usgoit.com/
 ```
 
 Supabase Edge Function secrets are set via `supabase secrets set` — see [SANDBOX_CHECKLIST.md](SANDBOX_CHECKLIST.md) for the full list.
