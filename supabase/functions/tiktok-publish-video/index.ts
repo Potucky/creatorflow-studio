@@ -25,6 +25,7 @@ const VIDEO_FILE_PATH_RE = /\.(mp4|mov|webm)$/i;
 type TransferMode = "PULL_FROM_URL" | "FILE_UPLOAD";
 
 interface ConnectionRecord {
+  id?: string;
   open_id?: string;
   access_token?: string;
   refresh_token?: string;
@@ -208,6 +209,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let chunkSize: number | undefined;
   let totalChunkCount: number | undefined;
   let requestOpenId: string | undefined;
+  let requestConnectionId: string | undefined;
   let brandOrganicToggle: boolean | undefined;
   let brandContentToggle: boolean | undefined;
   let disableComment: boolean | undefined;
@@ -221,6 +223,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = (await req.json()) as {
       open_id?: string;
+      connectionId?: string;
       transferMode?: string;
       upload_mode?: string;
       upload_binary?: boolean;
@@ -242,6 +245,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       source_filename?: string;
     };
     requestOpenId = body.open_id;
+    requestConnectionId = typeof body.connectionId === "string" ? body.connectionId : undefined;
 
     const rawMode = body.transferMode ?? body.upload_mode ?? "FILE_UPLOAD";
     if (rawMode !== "PULL_FROM_URL" && rawMode !== "FILE_UPLOAD") {
@@ -271,12 +275,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
 
-  // ── Require caller-supplied open_id — no fallback to latest connection ──────
-  if (!requestOpenId) {
+  // ── Require either connectionId or open_id — no fallback to latest connection
+  if (!requestConnectionId && !requestOpenId) {
     return json(
       {
         ok: false,
-        error: "Missing required field: open_id. Caller must supply the open_id from the token exchange response.",
+        error:
+          "Missing required field: connectionId or open_id. Caller must supply one.",
       },
       400,
     );
@@ -363,21 +368,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Server configuration error" }, 500);
   }
 
-  // ── Load TikTok connection for the supplied open_id ─────────────────────────
-  // Filtered by the caller-provided open_id — no fallback to latest row.
+  // ── Load TikTok connection — prefer connectionId lookup, fall back to open_id
   // access_token is read server-side only and is never logged or returned.
   let connection: ConnectionRecord | null;
   try {
-    const dbRes = await fetch(
-      `${supabaseUrl}/rest/v1/${DB_TABLE}?open_id=eq.${encodeURIComponent(requestOpenId)}&limit=1`,
-      {
+    const dbUrl = new URL(`/rest/v1/${DB_TABLE}`, supabaseUrl);
+    if (requestConnectionId) {
+      dbUrl.searchParams.set("id", `eq.${requestConnectionId}`);
+    } else {
+      dbUrl.searchParams.set("open_id", `eq.${encodeURIComponent(requestOpenId!)}`);
+    }
+    dbUrl.searchParams.set("limit", "1");
+
+    const dbRes = await fetch(dbUrl.toString(), {
         headers: {
           "apikey": serviceRoleKey,
           "Authorization": `Bearer ${serviceRoleKey}`,
           "Accept": "application/json",
         },
-      },
-    );
+      });
 
     if (!dbRes.ok) {
       console.error(`[tiktok-publish-video] DB fetch failed: HTTP ${dbRes.status}`);
@@ -428,7 +437,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (!pathMatch) {
         return json({ ok: false, error: "Invalid storage_path format" }, 400);
       }
-      const expectedPrefix = requestOpenId!.slice(0, 6).replace(/[^a-zA-Z0-9]/g, "_");
+      // Use the connection's own open_id for path prefix validation
+      const effectiveOpenId = connection!.open_id ?? requestOpenId ?? "";
+      const expectedPrefix = effectiveOpenId.slice(0, 6).replace(/[^a-zA-Z0-9]/g, "_");
       if (pathMatch[1] !== expectedPrefix) {
         return json({ ok: false, error: "storage_path prefix does not match open_id" }, 400);
       }
@@ -682,6 +693,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const publishId = tikTokData.data?.publish_id;
   const initOk = true;
   const uploadOk = binaryUploadAttempted ? binaryUploadOk === true : true;
+
+  // ── Update last_used_at now that publish was accepted ─────────────────────
+  // Best-effort — failure does not affect the publish result.
+  if (publishId && connection!.id) {
+    const dbUrl = new URL(`/rest/v1/${DB_TABLE}`, supabaseUrl);
+    dbUrl.searchParams.set("id", `eq.${connection!.id}`);
+    fetch(dbUrl.toString(), {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": serviceRoleKey,
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "Prefer": "return=minimal",
+      },
+      body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+    }).catch(() => console.log("[tiktok-publish-video] last_used_at update failed"));
+  }
 
   logSafePublishEvent({
     transferMode,

@@ -1420,6 +1420,288 @@ details[open] > .tt-details-summary::before {
   text-decoration: none;
 }
 
+/* ── Publishing as (left panel active account header) ───────────────── */
+
+.tt-publishing-as {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 116, 67, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(234, 250, 241, 0.72) 0%, rgba(209, 250, 229, 0.54) 100%);
+}
+
+.tt-publishing-as-label {
+  color: var(--success);
+  font-size: 0.7rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.tt-publishing-as-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tt-publishing-as-info {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tt-publishing-as-name {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 760;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.tt-publishing-as-status {
+  color: var(--success);
+  font-size: 0.72rem;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+/* ── Shared small avatar / placeholder ──────────────────────────────── */
+
+.tt-acct-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.tt-acct-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.2) 0%, rgba(100, 116, 139, 0.12) 100%);
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 760;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+/* ── Account manager block ──────────────────────────────────────────── */
+
+.tt-account-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 4px;
+  padding: 10px 10px 8px;
+  border: 1px solid rgba(16, 24, 40, 0.09);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.tt-btn--add-account {
+  margin-top: 4px;
+  background: linear-gradient(180deg, #1f2937 0%, var(--primary) 100%);
+  border-color: rgba(2, 6, 23, 0.88);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+}
+
+.tt-btn--add-account:hover:not(:disabled) {
+  background: linear-gradient(180deg, #111827 0%, var(--primary-hover) 100%);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Override the full-width rule for the add-account button */
+.tt-connection-panel .tt-btn--add-account {
+  width: 100%;
+  border-color: rgba(2, 6, 23, 0.88);
+  background: linear-gradient(180deg, #1f2937 0%, var(--primary) 100%);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+  color: #ffffff;
+}
+
+.tt-connection-panel .tt-btn--add-account:hover:not(:disabled) {
+  background: linear-gradient(180deg, #111827 0%, var(--primary-hover) 100%);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.2);
+}
+
+.tt-account-empty {
+  padding: 8px 4px 2px;
+}
+
+.tt-account-empty-text {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.tt-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 272px; /* ~5 cards */
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.tt-account-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tt-account-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tt-account-list::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.22);
+  border-radius: 999px;
+}
+
+.tt-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(16, 24, 40, 0.09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.tt-account-card--active {
+  border-color: rgba(8, 116, 67, 0.22);
+  background: linear-gradient(180deg, rgba(234, 250, 241, 0.8) 0%, rgba(209, 250, 229, 0.56) 100%);
+}
+
+.tt-account-card-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tt-account-card-info {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tt-account-card-name {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 740;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-account-card-id {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.tt-account-card-status {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.tt-account-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.tt-account-badge-active {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid rgba(8, 116, 67, 0.22);
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 0.7rem;
+  font-weight: 740;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.tt-account-btn-select,
+.tt-account-btn-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.tt-account-btn-select {
+  border: 1px solid rgba(16, 24, 40, 0.14);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink-soft);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.tt-account-btn-select:hover:not(:disabled) {
+  border-color: rgba(16, 24, 40, 0.24);
+  background: #ffffff;
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.tt-account-btn-delete {
+  border: 1px solid rgba(180, 35, 24, 0.18);
+  background: rgba(255, 245, 245, 0.8);
+  color: #b91c1c;
+}
+
+.tt-account-btn-delete:hover:not(:disabled) {
+  border-color: rgba(180, 35, 24, 0.32);
+  background: rgba(254, 226, 226, 0.9);
+  color: #991b1b;
+  transform: translateY(-1px);
+}
+
+.tt-account-btn-select:disabled,
+.tt-account-btn-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Legal pages ─────────────────────────────────────────────────── */
+
 @media (min-width: 901px) {
   .legal-sec { min-height: 205px; }
 }

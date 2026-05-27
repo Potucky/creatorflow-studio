@@ -4,11 +4,9 @@
 // access_token is used server-side only; never logged, never returned to caller.
 // The TikTok raw response is not logged or forwarded to the frontend.
 //
-// SECURITY: caller currently supplies open_id in the request body, matching the
-// publish/status functions. The DB lookup is filtered to that connection and
-// there is no fallback to "latest" connection.
-// TODO(security): bind open_id ownership to an authenticated Supabase user/session
-// before this is used beyond the current single-owner workflow.
+// Accepts either:
+//   connectionId — UUID from tiktok-list-connections (preferred)
+//   open_id      — legacy TikTok user identifier (backward compat)
 //
 // Required secrets:
 //   SUPABASE_URL              - project REST base URL
@@ -100,8 +98,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   console.log("[tiktok-creator-info] creator-info request started");
 
   let requestOpenId: string | undefined;
+  let requestConnectionId: string | undefined;
   try {
-    const body = (await req.json()) as { open_id?: unknown; openId?: unknown };
+    const body = (await req.json()) as {
+      open_id?: unknown;
+      openId?: unknown;
+      connectionId?: unknown;
+    };
+    if (typeof body.connectionId === "string") {
+      requestConnectionId = body.connectionId;
+    }
     if (typeof body.open_id === "string") {
       requestOpenId = body.open_id;
     } else if (typeof body.openId === "string") {
@@ -111,11 +117,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
 
-  if (!requestOpenId) {
+  if (!requestConnectionId && !requestOpenId) {
     return json(
       {
         ok: false,
-        error: "Missing required field: open_id. Caller must supply the open_id from the token exchange response.",
+        error:
+          "Missing required field: connectionId or open_id. Caller must supply one.",
       },
       400,
     );
@@ -135,7 +142,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let connection: ConnectionRecord | null;
   try {
     const dbUrl = new URL(`/rest/v1/${DB_TABLE}`, supabaseUrl);
-    dbUrl.searchParams.set("open_id", `eq.${requestOpenId}`);
+
+    // Prefer connectionId lookup; fall back to open_id for backward compat
+    if (requestConnectionId) {
+      dbUrl.searchParams.set("id", `eq.${requestConnectionId}`);
+    } else {
+      dbUrl.searchParams.set("open_id", `eq.${requestOpenId}`);
+    }
     dbUrl.searchParams.set("select", "open_id,access_token,scope,last_token_exchange_at");
     dbUrl.searchParams.set("limit", "1");
 

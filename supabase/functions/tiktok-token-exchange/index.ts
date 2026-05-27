@@ -4,6 +4,10 @@
 // them to public.creatorflow_tiktok_connections via the Supabase REST API
 // (service role).  Tokens are NEVER returned to the browser.
 //
+// After a successful exchange, attempts to fetch creator info (display_name,
+// avatar_url) inline so account manager UI can display them without a second
+// round-trip.  Creator-info failure does not abort the token exchange.
+//
 // Required secrets (set via `supabase secrets set`):
 //   TIKTOK_CLIENT_KEY         — app client_key from TikTok Developer Portal
 //   TIKTOK_CLIENT_SECRET      — never logged, never returned to caller
@@ -13,6 +17,8 @@
 //   SUPABASE_SERVICE_ROLE_KEY — service role key; used only server-side, never returned
 
 const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
+const TIKTOK_CREATOR_INFO_URL =
+  "https://open.tiktokapis.com/v2/post/publish/creator_info/query/";
 const DB_TABLE = "creatorflow_tiktok_connections";
 
 // TikTok v2 token endpoint response shape
@@ -27,6 +33,31 @@ interface TikTokTokenResponse {
   error?: string;
   error_description?: string;
   log_id?: string;
+}
+
+interface TikTokCreatorInfoData {
+  creator_avatar_url?: unknown;
+  creator_username?: unknown;
+  creator_nickname?: unknown;
+}
+
+interface TikTokCreatorInfoResponse {
+  data?: TikTokCreatorInfoData;
+  error?: { code?: string };
+}
+
+function maskOpenId(openId?: string | null): string | null {
+  if (!openId) return null;
+  if (openId.length <= 10) return openId.slice(0, 3) + "...";
+  return openId.slice(0, 6) + "..." + openId.slice(-4);
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+interface ConnectionIdRow {
+  id?: string;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -98,14 +129,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       "SUPABASE_URL",
       "SUPABASE_SERVICE_ROLE_KEY",
     ];
-    // Log absent key *names* only — never log values.
     const missing = required.filter((k) => !Deno.env.get(k)).join(", ");
     console.error(`[tiktok-token-exchange] Missing secrets: ${missing}`);
     return json({ ok: false, error: "Server configuration error" }, 500);
   }
 
   // ── Exchange code → token ───────────────────────────────────────────────────
-  // client_secret is sent to TikTok only; it never leaves this function.
   const formBody = new URLSearchParams({
     client_key: clientKey,
     client_secret: clientSecret, // server-side only — never logged, never returned
@@ -122,7 +151,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       body: formBody.toString(),
     });
     tikTokData = (await tikTokRes.json()) as TikTokTokenResponse;
-  } catch (err) {
+  } catch {
     console.error("[tiktok-token-exchange] Fetch to TikTok threw an exception");
     return json({ ok: false, error: "Failed to reach TikTok token endpoint" }, 502);
   }
@@ -140,16 +169,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── Optionally fetch creator info to get display_name and avatar_url ────────
+  // Best-effort: failure here does not abort the token exchange.
+  // access_token is used only here and in the upsert; it never reaches the caller.
+  let displayName: string | null = null;
+  let avatarUrl: string | null = null;
+  const accessToken = tikTokData.access_token;
+
+  if (accessToken) {
+    try {
+      const ciRes = await fetch(TIKTOK_CREATOR_INFO_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+      });
+      if (ciRes.ok) {
+        const ciData = (await ciRes.json()) as TikTokCreatorInfoResponse;
+        const ciTikTokOk = !ciData.error?.code || ciData.error.code === "ok";
+        if (ciTikTokOk && ciData.data) {
+          displayName =
+            stringOrNull(ciData.data.creator_nickname) ??
+            stringOrNull(ciData.data.creator_username);
+          avatarUrl = stringOrNull(ciData.data.creator_avatar_url);
+        }
+      }
+    } catch {
+      // Non-fatal — creator info will be fetched again by the frontend
+      console.log("[tiktok-token-exchange] Creator info fetch skipped");
+    }
+  }
+
   // ── Persist tokens server-side ─────────────────────────────────────────────
-  // SECURITY: access_token and refresh_token are written to the DB but are
-  // intentionally absent from the response returned to the browser.
-  // serviceRoleKey is used only for this outbound request; it is never logged
-  // and never included in any response.
+  // SECURITY: access_token and refresh_token are written to DB but never
+  // returned to the browser.  serviceRoleKey is never logged or returned.
   const now = Date.now();
   const expiresIn = tikTokData.expires_in ?? 0;
   const refreshExpiresIn = tikTokData.refresh_expires_in;
 
-  const record = {
+  const record: Record<string, unknown> = {
     open_id: tikTokData.open_id,
     scope: tikTokData.scope ?? null,
     token_type: tikTokData.token_type ?? null,
@@ -158,6 +217,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     expires_in: expiresIn,
     access_token_expires_at: new Date(now + expiresIn * 1000).toISOString(),
     last_token_exchange_at: new Date(now).toISOString(),
+    updated_at: new Date(now).toISOString(),
+    is_active: true,
+    ...(displayName !== null && { display_name: displayName }),
+    ...(avatarUrl !== null && { avatar_url: avatarUrl }),
     ...(refreshExpiresIn != null && {
       refresh_expires_in: refreshExpiresIn,
       refresh_token_expires_at: new Date(now + refreshExpiresIn * 1000).toISOString(),
@@ -177,23 +240,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     if (!dbRes.ok) {
-      // Log HTTP status only — no secrets, no token values.
       console.error(`[tiktok-token-exchange] DB upsert failed: HTTP ${dbRes.status}`);
       return json({ ok: false, error: "token_storage_failed" }, 500);
     }
-  } catch (err) {
+  } catch {
     console.error("[tiktok-token-exchange] DB upsert threw an exception");
     return json({ ok: false, error: "token_storage_failed" }, 502);
   }
 
+  // ── Retrieve the connection id for this open_id ────────────────────────────
+  // Separate SELECT so we never risk returning access_token via return=representation.
+  let connectionId: string | null = null;
+  try {
+    const dbUrl = new URL(`/rest/v1/${DB_TABLE}`, supabaseUrl);
+    dbUrl.searchParams.set("open_id", `eq.${tikTokData.open_id}`);
+    dbUrl.searchParams.set("select", "id");
+    dbUrl.searchParams.set("limit", "1");
+
+    const idRes = await fetch(dbUrl.toString(), {
+      headers: {
+        "apikey": serviceRoleKey,
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "Accept": "application/json",
+      },
+    });
+
+    if (idRes.ok) {
+      const rows = (await idRes.json()) as ConnectionIdRow[];
+      connectionId = rows[0]?.id ?? null;
+    }
+  } catch {
+    // Non-fatal: connectionId stays null; frontend falls back to openId-based flow
+    console.log("[tiktok-token-exchange] Failed to fetch connection id");
+  }
+
   // ── Return safe fields only ────────────────────────────────────────────────
-  // openId is the TikTok user identifier, not a secret — safe to return.
+  // openId is not a secret — it is the public TikTok user identifier.
   // access_token and refresh_token are intentionally absent.
   return json({
     ok: true,
     tokenReceived: !!tikTokData.access_token,
     openIdReceived: !!tikTokData.open_id,
     openId: tikTokData.open_id ?? null,
+    connectionId,                          // stable UUID reference for account manager
+    maskedOpenId: maskOpenId(tikTokData.open_id),
+    displayName,
+    avatarUrl,
     stored: true,
     scope: tikTokData.scope ?? null,
     tokenType: tikTokData.token_type ?? null,
