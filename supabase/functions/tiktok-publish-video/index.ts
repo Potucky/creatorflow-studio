@@ -288,20 +288,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (transferMode === "PULL_FROM_URL") {
-    const validation = validateVerifiedVideoUrl(videoUrl);
-    sourceDomainAllowed = validation.sourceDomainAllowed;
-    if (!validation.ok) {
-      logSafePublishEvent({
-        transferMode,
-        endpointMode: tiktokEnv,
-        sourceDomainAllowed,
-        tikTokStatus: null,
-        publishIdPresent: false,
-      });
-      return json({ ok: false, transferMode, sourceDomainAllowed, error: validation.error }, 400);
+    const trimmedVideoUrl = typeof videoUrl === "string" ? videoUrl.trim() : "";
+    if (!trimmedVideoUrl) {
+      return json({ ok: false, error: "Missing required field: videoUrl" }, 400);
     }
-    videoUrl = validation.normalizedUrl;
+    let parsedVideoUrl: URL;
+    try {
+      parsedVideoUrl = new URL(trimmedVideoUrl);
+    } catch {
+      return json({ ok: false, error: "videoUrl must be a valid HTTPS URL" }, 400);
+    }
+    if (parsedVideoUrl.protocol !== "https:") {
+      return json({ ok: false, error: "videoUrl must use HTTPS" }, 400);
+    }
+    videoUrl = trimmedVideoUrl;
+    sourceDomainAllowed = true;
     privacyLevel = "SELF_ONLY";
+    console.log(`[tiktok-publish-video] PULL_FROM_URL host: ${parsedVideoUrl.hostname}`);
   } else {
     // FILE_UPLOAD
     if (uploadBinary) {

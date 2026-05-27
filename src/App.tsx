@@ -10,7 +10,6 @@ const PUBLISH_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-publish-video';
 const STATUS_CHECK_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-status-check';
-const VERIFIED_PULL_FROM_URL_PREFIX = 'https://app.usgoit.com/';
 const TEST_VIDEO_URL =
   'https://app.usgoit.com/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
@@ -226,17 +225,6 @@ function publishStatusLabel(status: string | null | undefined): string {
   return `${status} (processing)`;
 }
 
-function isVerifiedDomainVideoUrl(value: string): boolean {
-  const trimmedValue = value.trim();
-  if (!trimmedValue.startsWith(VERIFIED_PULL_FROM_URL_PREFIX)) return false;
-  try {
-    const parsed = new URL(trimmedValue);
-    return parsed.protocol === 'https:' && /\.(mp4|mov|webm)$/i.test(parsed.pathname);
-  } catch {
-    return false;
-  }
-}
-
 function buildAuthUrl(clientKey: string, redirectUri: string): string {
   const state = crypto.randomUUID();
   sessionStorage.setItem(SESSION_STATE_KEY, state);
@@ -299,7 +287,7 @@ function App() {
   const [allowDuet, setAllowDuet] = useState(false);
   const [allowStitch, setAllowStitch] = useState(false);
   const [transferMode, setTransferMode] = useState<TransferMode>('FILE_UPLOAD');
-  const [pullFromUrl, setPullFromUrl] = useState(TEST_VIDEO_URL);
+  const [pullFromUrl, setPullFromUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObjectUrl, setSelectedObjectUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -656,10 +644,10 @@ function App() {
     selectedObjectUrl !== null &&
     selectedFile.type.startsWith('video/') &&
     selectedFile.size > 0;
-  const pullFromUrlReady = isVerifiedDomainVideoUrl(pullFromUrl);
+  const pullFromUrlReady = pullFromUrl.trim().length > 0 && pullFromUrl.trim().startsWith('https://');
   const videoSourceReady = pullFromUrlMode ? pullFromUrlReady : selectedVideoReady;
   const previewSrc = pullFromUrlMode ? pullFromUrl.trim() || TEST_VIDEO_URL : selectedObjectUrl ?? TEST_VIDEO_URL;
-  const previewLabel = pullFromUrlMode ? pullFromUrl.trim() || TEST_VIDEO_URL : selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4';
+  const previewLabel = pullFromUrlMode ? pullFromUrl.trim() || '—' : selectedFile?.name ?? 'tiktok-sandbox-tiny-test.mp4';
   const trimmedTitle = title.trim();
   const titleTooLong = title.length > MAX_TIKTOK_TITLE_LENGTH;
   const titleReady = trimmedTitle.length > 0 && !titleTooLong;
@@ -1268,31 +1256,27 @@ function App() {
               disabled={publishState === 'loading'}
               onChange={handleTransferModeChange}
             >
-              <option value="FILE_UPLOAD">FILE_UPLOAD</option>
-              <option value="PULL_FROM_URL">PULL_FROM_URL verified-domain test</option>
+              <option value="FILE_UPLOAD">File upload</option>
+              <option value="PULL_FROM_URL">Public video URL</option>
             </select>
           </div>
 
           {pullFromUrlMode && (
-            <>
-              <p className="tt-warning">
-                PULL_FROM_URL lets TikTok fetch the media from our verified domain. Test uses SELF_ONLY.
-              </p>
-              <div className="tt-field-row">
-                <label className="tt-label" htmlFor="pull-from-url">Video URL</label>
-                <input
-                  id="pull-from-url"
-                  className="tt-input"
-                  type="url"
-                  value={pullFromUrl}
-                  disabled={publishState === 'loading'}
-                  onChange={handlePullFromUrlChange}
-                />
-                {!pullFromUrlReady && (
-                  <p className="tt-helper-warn">Use an HTTPS .mp4, .mov, or .webm URL from app.usgoit.com.</p>
-                )}
-              </div>
-            </>
+            <div className="tt-field-row">
+              <label className="tt-label" htmlFor="pull-from-url">Public video URL</label>
+              <input
+                id="pull-from-url"
+                className="tt-input"
+                type="url"
+                placeholder="https://example.com/video.mp4"
+                value={pullFromUrl}
+                disabled={publishState === 'loading'}
+                onChange={handlePullFromUrlChange}
+              />
+              {!pullFromUrlReady && (
+                <p className="tt-helper-warn">Enter a public HTTPS video URL before publishing.</p>
+              )}
+            </div>
           )}
 
           <div className="tt-video-preview">
@@ -1313,23 +1297,19 @@ function App() {
                 disabled={publishState === 'loading' || pullFromUrlMode}
                 onChange={handleFileChange}
               />
-              {pullFromUrlMode ? (
-                <span className="tt-badge tt-warn">Verified URL test</span>
-              ) : (
-                <button
-                  type="button"
-                  className="tt-btn-choose"
-                  disabled={publishState === 'loading'}
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = '';
-                      fileInputRef.current.click();
-                    }
-                  }}
-                >
-                  Choose video
-                </button>
-              )}
+              <button
+                type="button"
+                className="tt-btn-choose"
+                disabled={publishState === 'loading' || pullFromUrlMode}
+                onClick={() => {
+                  if (!pullFromUrlMode && fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                    fileInputRef.current.click();
+                  }
+                }}
+              >
+                Choose video
+              </button>
             </div>
             {!pullFromUrlMode && !selectedVideoReady && (
               <p className="tt-helper-warn">Choose a video before publishing.</p>
