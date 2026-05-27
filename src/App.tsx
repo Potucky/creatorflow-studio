@@ -1287,34 +1287,46 @@ function App() {
               className="tt-preview-video"
             />
             <div className="tt-video-choose-row">
-              <p className="tt-preview-label">{previewLabel}</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                aria-label="Choose video file"
-                className="tt-file-input-hidden"
-                disabled={publishState === 'loading' || pullFromUrlMode}
-                onChange={handleFileChange}
-              />
-              <button
-                type="button"
-                className="tt-btn-choose"
-                disabled={publishState === 'loading' || pullFromUrlMode}
-                onClick={() => {
-                  if (!pullFromUrlMode && fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                    fileInputRef.current.click();
-                  }
-                }}
-              >
-                Choose video
-              </button>
+              {pullFromUrlMode ? (
+                <span className="tt-url-mode-pill">Using public URL</span>
+              ) : (
+                <>
+                  <p className="tt-preview-label">{previewLabel}</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/*"
+                    aria-label="Choose video file"
+                    className="tt-file-input-hidden"
+                    disabled={publishState === 'loading'}
+                    onChange={handleFileChange}
+                  />
+                  <button
+                    type="button"
+                    className="tt-btn-choose"
+                    disabled={publishState === 'loading'}
+                    onClick={() => {
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                        fileInputRef.current.click();
+                      }
+                    }}
+                  >
+                    Choose video
+                  </button>
+                </>
+              )}
             </div>
             {!pullFromUrlMode && !selectedVideoReady && (
               <p className="tt-helper-warn">Choose a video before publishing.</p>
             )}
           </div>
+          {pullFromUrlMode && (
+            <div className="tt-url-preview-display">
+              <span className="tt-url-preview-label">Selected public URL:</span>
+              <span className="tt-url-preview-value">{pullFromUrl.trim() || '—'}</span>
+            </div>
+          )}
 
           <div className="tt-field-row">
             <label className="tt-label" htmlFor="publish-title">Title</label>

@@ -739,7 +739,7 @@ details[open] > .tt-details-summary::before {
 
 .tt-field-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   margin-top: 8px;
@@ -843,6 +843,46 @@ details[open] > .tt-details-summary::before {
 
 .tt-file-input-hidden {
   display: none;
+}
+
+.tt-url-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.76rem;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.tt-url-preview-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.tt-url-preview-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.tt-url-preview-value {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
 .tt-creator-row {
