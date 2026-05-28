@@ -349,7 +349,9 @@ function App() {
       if (stillExists && savedId) {
         setSelectedConnectionId(savedId);
         localStorage.setItem(SELECTED_CONNECTION_KEY, savedId);
-      } else if (data.connections.length > 0) {
+      } else if (forceSelectId !== undefined && data.connections.length > 0) {
+        // Only auto-pick first when explicitly instructed (e.g., after OAuth callback)
+        // Never auto-select on a clean session where localStorage has no saved choice
         const newId = data.connections[0].id;
         setSelectedConnectionId(newId);
         localStorage.setItem(SELECTED_CONNECTION_KEY, newId);
@@ -489,6 +491,15 @@ function App() {
     clearPublishFeedback();
   }
 
+  function handleSelectConnection(id: string) {
+    if (id === selectedConnectionId) return;
+    setSelectedConnectionId(id);
+    localStorage.setItem(SELECTED_CONNECTION_KEY, id);
+    setCreatorInfo(null);
+    setCreatorInfoStatus('idle');
+    clearPublishFeedback();
+  }
+
   function handleLoadCreatorInfo() {
     if (!selectedConnectionId || creatorInfoStatus === 'loading') return;
     setCreatorInfoStatus('loading');
@@ -506,15 +517,6 @@ function App() {
         setCreatorInfoStatus('done');
       })
       .catch(() => setCreatorInfoStatus('error'));
-  }
-
-  function handleSelectConnection(id: string) {
-    if (id === selectedConnectionId) return;
-    setSelectedConnectionId(id);
-    localStorage.setItem(SELECTED_CONNECTION_KEY, id);
-    setCreatorInfo(null);
-    setCreatorInfoStatus('idle');
-    clearPublishFeedback();
   }
 
   async function handleDeleteConnection(id: string) {
@@ -1115,18 +1117,32 @@ function App() {
             <span className="tt-scope-value">user.info.basic · video.publish</span>
           </div>
 
+          {/* Connect CTA — prominent when no active account, for review UX */}
+          {!selectedConnection && (
+            <button
+              type="button"
+              className="tt-btn"
+              onClick={handleConnect}
+              disabled={missingConfig}
+            >
+              Connect TikTok Account
+            </button>
+          )}
+
           {/* ── Manage TikTok Accounts ── */}
           <div className="tt-account-manager">
             <span className="tt-section-heading">Manage TikTok Accounts</span>
 
-            <button
-              type="button"
-              className="tt-btn tt-btn--add-account"
-              onClick={handleConnect}
-              disabled={missingConfig}
-            >
-              + Add TikTok Account
-            </button>
+            {selectedConnection && (
+              <button
+                type="button"
+                className="tt-btn tt-btn--add-account"
+                onClick={handleConnect}
+                disabled={missingConfig}
+              >
+                + Add TikTok Account
+              </button>
+            )}
 
             {missingConfig && (
               <p className="tt-warning">
