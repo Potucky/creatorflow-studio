@@ -1,20 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 const TIKTOK_AUTH_BASE = 'https://www.tiktok.com/v2/auth/authorize/';
 const SCOPE = 'user.info.basic,video.publish';
 const SESSION_STATE_KEY = 'tiktok_oauth_state';
-const SELECTED_CONNECTION_KEY = 'tiktok_selected_connection_id';
 const EDGE_FUNCTION_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-token-exchange';
 const PUBLISH_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-publish-video';
 const STATUS_CHECK_URL =
   'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-status-check';
-const LIST_CONNECTIONS_URL =
-  'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-list-connections';
-const DELETE_CONNECTION_URL =
-  'https://ggeoggxygoiydnxwclcn.supabase.co/functions/v1/tiktok-delete-connection';
 const TEST_VIDEO_URL =
   'https://app.usgoit.com/test-videos/tiktok-sandbox-tiny-test.mp4';
 const DEFAULT_TITLE = 'Creator video upload';
@@ -55,19 +50,6 @@ interface TokenExchangeResult {
   log_id?: string | null;
   display_name?: string | null;
   username?: string | null;
-}
-
-// Safe fields only — tokens intentionally absent
-interface TikTokConnection {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  open_id: string | null;
-  masked_open_id: string | null;
-  scope: string | null;
-  is_active: boolean;
-  last_used_at: string | null;
-  created_at: string | null;
 }
 
 // Safe fields only — upload_url, access_token, refresh_token intentionally absent
@@ -311,61 +293,6 @@ function App() {
   const [selectedObjectUrl, setSelectedObjectUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Account manager state
-  const [connections, setConnections] = useState<TikTokConnection[]>([]);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(
-    () => localStorage.getItem(SELECTED_CONNECTION_KEY),
-  );
-  const [isLoadingConnections, setIsLoadingConnections] = useState(false);
-  const [isDeletingConnection, setIsDeletingConnection] = useState<string | null>(null);
-  const [accountManagerError, setAccountManagerError] = useState<string | null>(null);
-
-  // loadConnections: stable reference (state setters and constants only)
-  const loadConnections = useCallback(async (forceSelectId?: string | null): Promise<void> => {
-    setIsLoadingConnections(true);
-    setAccountManagerError(null);
-    try {
-      const res = await fetch(LIST_CONNECTIONS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const data = (await res.json()) as { ok: boolean; connections?: TikTokConnection[]; error?: string };
-      if (!data.ok || !Array.isArray(data.connections)) {
-        setAccountManagerError(data.error ?? 'Failed to load connections');
-        return;
-      }
-      setConnections(data.connections);
-
-      // forceSelectId: explicit override (including null = "pick first available")
-      // undefined: read from localStorage
-      const savedId =
-        forceSelectId !== undefined
-          ? forceSelectId
-          : localStorage.getItem(SELECTED_CONNECTION_KEY);
-
-      const stillExists = savedId ? data.connections.find((c) => c.id === savedId) : null;
-
-      if (stillExists && savedId) {
-        setSelectedConnectionId(savedId);
-        localStorage.setItem(SELECTED_CONNECTION_KEY, savedId);
-      } else if (forceSelectId !== undefined && data.connections.length > 0) {
-        // Only auto-pick first when explicitly instructed (e.g., after OAuth callback)
-        // Never auto-select on a clean session where localStorage has no saved choice
-        const newId = data.connections[0].id;
-        setSelectedConnectionId(newId);
-        localStorage.setItem(SELECTED_CONNECTION_KEY, newId);
-      } else {
-        setSelectedConnectionId(null);
-        localStorage.removeItem(SELECTED_CONNECTION_KEY);
-      }
-    } catch {
-      setAccountManagerError('Failed to load connections');
-    } finally {
-      setIsLoadingConnections(false);
-    }
-  }, []); // state setters and module constants are stable
-
   // Page title
   useEffect(() => {
     if (path.includes('/terms')) {
@@ -376,11 +303,6 @@ function App() {
       document.title = 'CreatorFlow Studio';
     }
   }, [path]);
-
-  // Load connections on mount
-  useEffect(() => {
-    void loadConnections();
-  }, [loadConnections]);
 
   // Token exchange — runs when there is a valid OAuth callback
   useEffect(() => {
@@ -414,16 +336,9 @@ function App() {
       .finally(() => setExchangeStatus('done'));
   }, [callbackResult]);
 
-  // After OAuth completes, refresh connections and select the new account
+  // Load creator info after successful token exchange
   useEffect(() => {
-    if (exchangeStatus !== 'done' || !tokenResult?.ok) return;
-    // connectionId from token exchange identifies the newly added account
-    void loadConnections(tokenResult.connectionId ?? null);
-  }, [exchangeStatus, tokenResult?.ok, tokenResult?.connectionId, loadConnections]);
-
-  // Reload creator info whenever the selected connection changes
-  useEffect(() => {
-    if (!selectedConnectionId) {
+    if (!tokenResult?.ok || !tokenResult?.openId) {
       setCreatorInfo(null);
       setCreatorInfoStatus('idle');
       return;
@@ -432,7 +347,7 @@ function App() {
     fetch(CREATOR_INFO_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connectionId: selectedConnectionId }),
+      body: JSON.stringify({ open_id: tokenResult.openId }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('not ok');
@@ -443,7 +358,7 @@ function App() {
         setCreatorInfoStatus('done');
       })
       .catch(() => setCreatorInfoStatus('error'));
-  }, [selectedConnectionId]);
+  }, [tokenResult?.ok, tokenResult?.openId]);
 
   const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY as string | undefined;
   const redirectUri = import.meta.env.VITE_TIKTOK_REDIRECT_URI as string | undefined;
@@ -491,22 +406,13 @@ function App() {
     clearPublishFeedback();
   }
 
-  function handleSelectConnection(id: string) {
-    if (id === selectedConnectionId) return;
-    setSelectedConnectionId(id);
-    localStorage.setItem(SELECTED_CONNECTION_KEY, id);
-    setCreatorInfo(null);
-    setCreatorInfoStatus('idle');
-    clearPublishFeedback();
-  }
-
   function handleLoadCreatorInfo() {
-    if (!selectedConnectionId || creatorInfoStatus === 'loading') return;
+    if (!tokenResult?.openId || creatorInfoStatus === 'loading') return;
     setCreatorInfoStatus('loading');
     fetch(CREATOR_INFO_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connectionId: selectedConnectionId }),
+      body: JSON.stringify({ open_id: tokenResult.openId }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('not ok');
@@ -519,45 +425,6 @@ function App() {
       .catch(() => setCreatorInfoStatus('error'));
   }
 
-  async function handleDeleteConnection(id: string) {
-    const conn = connections.find((c) => c.id === id);
-    const name = conn?.display_name ?? conn?.masked_open_id ?? 'this account';
-    if (
-      !confirm(
-        `Remove ${name} from CreatorFlow Studio?\n\nThis does not delete your TikTok account — it only removes the saved connection.`,
-      )
-    )
-      return;
-
-    setIsDeletingConnection(id);
-    setAccountManagerError(null);
-    try {
-      const res = await fetch(DELETE_CONNECTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId: id }),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) {
-        setAccountManagerError(data.error ?? 'Failed to remove connection');
-        return;
-      }
-      const wasActive = id === selectedConnectionId;
-      if (wasActive) {
-        localStorage.removeItem(SELECTED_CONNECTION_KEY);
-        setCreatorInfo(null);
-        setCreatorInfoStatus('idle');
-        clearPublishFeedback();
-      }
-      // Reload list — if wasActive, localStorage is cleared so first remaining is picked
-      await loadConnections();
-    } catch {
-      setAccountManagerError('Failed to remove connection');
-    } finally {
-      setIsDeletingConnection(null);
-    }
-  }
-
   async function logReviewAudit(result: PublishResult, videoTitle: string, notes = '', videoSource = TEST_VIDEO_URL): Promise<boolean> {
     void result;
     void videoTitle;
@@ -565,9 +432,6 @@ function App() {
     void videoSource;
     return false;
   }
-
-  // Derive the currently selected connection object
-  const selectedConnection = connections.find((c) => c.id === selectedConnectionId) ?? null;
 
   async function handlePublish() {
     if (!canPublish) return;
@@ -581,8 +445,7 @@ function App() {
     const publishPrivacyLevel = currentTransferMode === 'PULL_FROM_URL' ? 'SELF_ONLY' : privacyLevel;
 
     const publishBody: Record<string, unknown> = {
-      connectionId: selectedConnectionId,
-      open_id: selectedConnection?.open_id ?? undefined,
+      open_id: tokenResult?.openId ?? undefined,
       transferMode: currentTransferMode,
       upload_mode: currentTransferMode,
       upload_binary: currentTransferMode === 'FILE_UPLOAD',
@@ -610,7 +473,7 @@ function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            open_id: selectedConnection?.open_id ?? undefined,
+            open_id: tokenResult?.openId ?? undefined,
             file_name: selectedFile.name,
             content_type: selectedFile.type || 'video/mp4',
             file_size: selectedFile.size,
@@ -695,7 +558,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          open_id: selectedConnection?.open_id ?? tokenResult?.openId ?? undefined,
+          open_id: tokenResult?.openId ?? undefined,
           publish_id: publishId,
         }),
       });
@@ -754,14 +617,15 @@ function App() {
   ).map((value) => ({ value, label: privacyOptionLabels[value] }));
 
   const accountDisplayName =
-    selectedConnection?.display_name ||
+    tokenResult?.displayName ||
     creatorInfo?.creator_username ||
     creatorInfo?.creator_nickname ||
     creatorInfo?.nickname ||
     null;
 
-  const hasConnectedTikTok = selectedConnection !== null;
-  const grantedScopes = (selectedConnection?.scope ?? '').split(/[\s,]+/).filter(Boolean);
+  const hasConnectedTikTok =
+    exchangeStatus === 'done' && tokenResult?.ok === true && !!tokenResult?.openId;
+  const grantedScopes = (tokenResult?.scope ?? '').split(/[\s,]+/).filter(Boolean);
   const hasVideoPublishScope = grantedScopes.includes('video.publish');
   const creatorInfoReady = creatorInfoStatus === 'done' && creatorInfo !== null;
   const creatorInfoLoading = creatorInfoStatus === 'loading';
@@ -799,7 +663,6 @@ function App() {
     { label: 'Official website and brand visible', pass: true },
     { label: 'Terms and Privacy links in header', pass: true },
     { label: 'TikTok account connected', pass: hasConnectedTikTok },
-    { label: 'Active publishing account selected', pass: selectedConnection !== null },
     { label: 'TikTok video.publish scope granted', pass: hasVideoPublishScope },
     { label: 'Creator info loaded from TikTok', pass: creatorInfoReady },
     { label: 'Privacy manually selected from TikTok options', pass: privacySelected && privacyAllowed },
@@ -1026,11 +889,11 @@ function App() {
           </div>
         </div>
         <div className="app-header-account">
-          {selectedConnection ? (
+          {hasConnectedTikTok ? (
             <div className="ui-account-chip">
-              {(selectedConnection.avatar_url || creatorInfo?.avatarUrl) ? (
+              {(tokenResult?.avatarUrl || creatorInfo?.avatarUrl) ? (
                 <img
-                  src={selectedConnection.avatar_url || creatorInfo?.avatarUrl || ''}
+                  src={tokenResult?.avatarUrl || creatorInfo?.avatarUrl || ''}
                   alt={accountDisplayName || 'Account'}
                   className="ui-account-avatar"
                 />
@@ -1042,7 +905,7 @@ function App() {
               <span className="ui-account-name">
                 {accountDisplayName
                   ? accountDisplayName.toUpperCase()
-                  : selectedConnection.masked_open_id ?? '?'}
+                  : tokenResult?.maskedOpenId ?? '?'}
               </span>
             </div>
           ) : (
@@ -1051,8 +914,8 @@ function App() {
         </div>
 
         <div className="app-header-meta">
-          <span className={`conn-status ${selectedConnection ? 'conn-ok' : 'conn-idle'}`}>
-            {selectedConnection ? '● Connected' : '○ Not connected'}
+          <span className={`conn-status ${hasConnectedTikTok ? 'conn-ok' : 'conn-idle'}`}>
+            {hasConnectedTikTok ? '● Connected' : '○ Not connected'}
           </span>
           <a href={`${import.meta.env.BASE_URL}terms/`}>Terms</a>
           <a href={`${import.meta.env.BASE_URL}privacy/`}>Privacy</a>
@@ -1066,13 +929,13 @@ function App() {
           <h2>TikTok Connection</h2>
 
           {/* Publishing as — active account summary */}
-          {selectedConnection ? (
+          {hasConnectedTikTok ? (
             <div className="tt-publishing-as">
               <span className="tt-publishing-as-label">Publishing as</span>
               <div className="tt-publishing-as-row">
-                {(selectedConnection.avatar_url || creatorInfo?.avatarUrl) ? (
+                {(tokenResult?.avatarUrl || creatorInfo?.avatarUrl) ? (
                   <img
-                    src={selectedConnection.avatar_url || creatorInfo?.avatarUrl || ''}
+                    src={tokenResult?.avatarUrl || creatorInfo?.avatarUrl || ''}
                     alt={accountDisplayName || 'Account'}
                     className="tt-acct-avatar"
                   />
@@ -1083,7 +946,7 @@ function App() {
                 )}
                 <div className="tt-publishing-as-info">
                   <span className="tt-publishing-as-name">
-                    {accountDisplayName?.toUpperCase() ?? selectedConnection.masked_open_id ?? 'Account'}
+                    {accountDisplayName?.toUpperCase() ?? tokenResult?.maskedOpenId ?? 'Account'}
                   </span>
                   <span className="tt-publishing-as-status">Connected</span>
                 </div>
@@ -1096,10 +959,10 @@ function App() {
             </div>
           )}
 
-          {selectedConnection?.masked_open_id && (
+          {tokenResult?.maskedOpenId && (
             <div className="tt-meta-row">
-              <span className="tt-label">Connection ID</span>
-              <span className="tt-code">{selectedConnection.masked_open_id}</span>
+              <span className="tt-label">Open ID</span>
+              <span className="tt-code">{tokenResult.maskedOpenId}</span>
             </div>
           )}
 
@@ -1117,8 +980,8 @@ function App() {
             <span className="tt-scope-value">user.info.basic · video.publish</span>
           </div>
 
-          {/* Connect CTA — prominent when no active account, for review UX */}
-          {!selectedConnection && (
+          {/* Connect CTA — prominent when no active account */}
+          {!hasConnectedTikTok && (
             <button
               type="button"
               className="tt-btn"
@@ -1129,102 +992,11 @@ function App() {
             </button>
           )}
 
-          {/* ── Manage TikTok Accounts ── */}
-          <div className="tt-account-manager">
-            <span className="tt-section-heading">Manage TikTok Accounts</span>
-
-            {selectedConnection && (
-              <button
-                type="button"
-                className="tt-btn tt-btn--add-account"
-                onClick={handleConnect}
-                disabled={missingConfig}
-              >
-                + Add TikTok Account
-              </button>
-            )}
-
-            {missingConfig && (
-              <p className="tt-warning">
-                <strong>Config missing:</strong> Client key or redirect URI is not set.
-              </p>
-            )}
-
-            {isLoadingConnections && (
-              <p className="tt-exchange-loading">Loading accounts…</p>
-            )}
-
-            {accountManagerError && (
-              <p className="tt-helper-warn">{accountManagerError}</p>
-            )}
-
-            {!isLoadingConnections && connections.length === 0 && (
-              <div className="tt-account-empty">
-                <p className="tt-account-empty-text">No TikTok accounts saved yet.</p>
-              </div>
-            )}
-
-            {connections.length > 0 && (
-              <div className="tt-account-list">
-                {connections.map((conn) => {
-                  const isActive = conn.id === selectedConnectionId;
-                  const displayName = conn.display_name ?? conn.masked_open_id ?? 'Unknown';
-                  const isDeleting = isDeletingConnection === conn.id;
-                  return (
-                    <div
-                      key={conn.id}
-                      className={`tt-account-card${isActive ? ' tt-account-card--active' : ''}`}
-                    >
-                      <div className="tt-account-card-identity">
-                        {conn.avatar_url ? (
-                          <img
-                            src={conn.avatar_url}
-                            alt={displayName}
-                            className="tt-acct-avatar"
-                          />
-                        ) : (
-                          <span className="tt-acct-placeholder">
-                            {displayName[0]?.toUpperCase() ?? '?'}
-                          </span>
-                        )}
-                        <div className="tt-account-card-info">
-                          <span className="tt-account-card-name">{displayName}</span>
-                          <span className="tt-account-card-id">
-                            ID: {conn.masked_open_id ?? '—'}
-                          </span>
-                          <span className="tt-account-card-status">Status: Connected</span>
-                        </div>
-                      </div>
-                      <div className="tt-account-card-actions">
-                        {isActive ? (
-                          <span className="tt-account-badge-active">Active</span>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="tt-account-btn-select"
-                              onClick={() => handleSelectConnection(conn.id)}
-                              disabled={isDeleting}
-                            >
-                              Select
-                            </button>
-                            <button
-                              type="button"
-                              className="tt-account-btn-delete"
-                              onClick={() => void handleDeleteConnection(conn.id)}
-                              disabled={isDeleting}
-                            >
-                              {isDeleting ? '…' : 'Delete'}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {missingConfig && (
+            <p className="tt-warning">
+              <strong>Config missing:</strong> Client key or redirect URI is not set.
+            </p>
+          )}
 
           <p className="tt-warning">
             <strong>Privacy note:</strong> CreatorFlow Studio connects securely to TikTok.
@@ -2009,10 +1781,10 @@ function App() {
                 <span className="tt-label">Video</span>
                 <span className="tt-code">{previewLabel}</span>
               </div>
-              {selectedConnectionId && (
+              {tokenResult?.maskedOpenId && (
                 <div className="tt-meta-row">
-                  <span className="tt-label">Connection ID</span>
-                  <span className="tt-code">{selectedConnectionId.slice(0, 8)}…</span>
+                  <span className="tt-label">open_id</span>
+                  <span className="tt-code">{tokenResult.maskedOpenId}</span>
                 </div>
               )}
               {publishResult?.connectionOpenIdMasked && (
