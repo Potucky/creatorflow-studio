@@ -5,7 +5,7 @@
 // The TikTok raw response is not logged or forwarded to the frontend.
 //
 // Accepts either:
-//   connectionId — UUID from tiktok-list-connections (preferred)
+//   connectionId — optional TikTok connection DB id; when omitted, falls back to open_id lookup
 //   open_id      — legacy TikTok user identifier (backward compat)
 //
 // Required secrets:
