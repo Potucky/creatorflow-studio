@@ -27,13 +27,11 @@ The app does **not** perform scraping, follower automation, mass liking, mass co
 - **User controls**: users manually select privacy, choose a video, review the preview/title/interactions, complete commercial disclosure, confirm Music Usage, and give final publish consent before the publish button is enabled
 - **Tokens**: access and refresh tokens are stored server-side in Supabase only; they are never returned to the browser
 
-## Review status
+## Project Status
 
-CreatorFlow Studio is prepared for TikTok Content Posting API Direct Post review. The remaining known architecture risk is that the browser still receives the TikTok `open_id` and Supabase functions use that caller-supplied identifier to load the stored connection. Tokens remain server-side, but a future hardening pass should replace this with an opaque session-bound connection handle.
+CreatorFlow Studio is under active development and has been prepared for TikTok Content Posting API Direct Post review. This README makes no claim that TikTok production approval has been granted. Further security hardening is planned.
 
-## Production review
-
-The TikTok app is currently submitted for production review. Do not recall the review or change production app settings, scopes, URLs, or products while the review is pending.
+Before changing production app settings, scopes, URLs, or products, check the current state of the TikTok app review.
 
 ## Stack
 
